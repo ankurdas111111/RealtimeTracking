@@ -1,0 +1,135 @@
+/**
+ * REAL-TIME LOCATION TRACKER - MAIN STYLES
+ * 
+ * This stylesheet contains:
+ * 1. Base styling for the application
+ * 2. Custom marker and path styles
+ * 3. Popup styling
+ * 4. Responsive layout adjustments
+ * 5. Animation effects
+ */
+
+/*============================================================
+  BASE STYLES
+============================================================*/
+
+/* Reset default styles */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+/* Ensure full-height layout */
+html, body {
+    width: 100%;
+    height: 100%;
+    font-family: Arial, sans-serif;
+}
+
+/*============================================================
+  MAP ELEMENT STYLES
+============================================================*/
+
+/* Custom marker styling */
+.custom-marker-icon {
+    /* Circular marker with shadow */
+    border-radius: 50%;
+    border: 2px solid white;
+    box-shadow: 0 0 3px rgba(0,0,0,0.4);
+}
+
+/* Path line styling */
+.tracking-path {
+    /* Slightly transparent blue line for the path */
+    stroke-width: 3;
+    stroke-opacity: 0.7;
+}
+
+/*============================================================
+  POPUP STYLES
+============================================================*/
+
+/* Main popup content */
+.leaflet-popup-content {
+    font-family: Arial, sans-serif;
+}
+
+/* Custom information popup */
+.location-popup {
+    padding: 5px;
+}
+
+/* Popup headers */
+.location-popup h4 {
+    margin: 0 0 5px 0;
+    font-weight: 600;
+}
+
+/* Popup information lines */
+.location-popup p {
+    margin: 2px 0;
+    font-size: 13px;
+}
+
+/*============================================================
+  RESPONSIVE DESIGN
+============================================================*/
+
+/* Adjustments for mobile devices */
+@media (max-width: 768px) {
+    /* Information panel positioning for small screens */
+    .info-panel {
+        top: 10px;
+        right: 10px;
+        left: 10px;
+        font-size: 0.9em;
+    }
+    
+    /* Control panel positioning for small screens */
+    .control-panel {
+        bottom: 10px;
+        left: 10px;
+        right: 10px;
+        display: flex;
+        justify-content: center;
+    }
+    
+    /* Button sizing for small screens */
+    button {
+        width: 100%;
+        max-width: 200px;
+    }
+}
+
+/*============================================================
+  LOADING INDICATORS AND ANIMATIONS
+============================================================*/
+
+/* Spinning loading indicator */
+.loading-spinner {
+    /* Size and appearance */
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    border: 3px solid rgba(0,0,0,0.1);
+    border-radius: 50%;
+    
+    /* Colored top border creates spinning effect */
+    border-top-color: #4CAF50;
+    
+    /* Animation properties */
+    animation: spin 1s ease-in-out infinite;
+    
+    /* Positioning */
+    margin-left: 10px;
+    vertical-align: middle;
+}
+
+/* Keyframes for spinner rotation */
+@keyframes spin {
+    to { 
+        transform: rotate(360deg); 
+    }
+}
+
