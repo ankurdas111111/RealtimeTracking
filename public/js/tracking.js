@@ -19,10 +19,12 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
     return R * c;
 }
 
-function createMapIcon(color, text) {
+function createMapIcon(color, text, options) {
+    const opts = options || {};
+    const pulseClass = opts.pulse ? ' pulse' : '';
     return L.divIcon({
         className: 'custom-map-icon',
-        html: `<div style="background-color: ${color}; width: 12px; height: 12px; border-radius: 50%; border: 2px solid white; box-shadow: 0 0 3px rgba(0,0,0,0.4);">${text || ''}</div>`,
+        html: `<div class="dot${pulseClass}" style="background-color: ${color};">${text || ''}</div>`,
         iconSize: [16, 16],
         iconAnchor: [8, 8]
     });

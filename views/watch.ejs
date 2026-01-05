@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Emergency Watch</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    #map { height: 100vh; width: 100%; }
+    .watch-banner {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      right: 10px;
+      z-index: 1000;
+      background: rgba(244,67,54,0.95);
+      color: white;
+      padding: 10px 12px;
+      border-radius: 8px;
+      font-family: Arial, sans-serif;
+    }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+  <div class="watch-banner" id="watchBanner">Connecting…</div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/js/tracking.js"></script>
+  <script>
+    const token = "<%= token %>";
+    const map = L.map('map').setView([0, 0], 2);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    }).addTo(map);
+
+    const banner = document.getElementById('watchBanner');
+    const socket = io();
+    let marker = null;
+
+    function setBanner(sos) {
+      if (!sos || !sos.active) {
+        banner.style.background = 'rgba(33,150,243,0.95)';
+        banner.textContent = 'Watch link is inactive.';
+        return;
+      }
+      const count = typeof sos.ackCount === 'number' ? sos.ackCount : (Array.isArray(sos.acks) ? sos.acks.length : 0);
+      const who = count ? `Acknowledged (${count})` : 'Not yet acknowledged';
+      banner.textContent = `SOS: ${sos.reason || 'SOS'} • ${who}`;
+    }
+
+    function update(u) {
+      if (!u || typeof u.latitude !== 'number' || typeof u.longitude !== 'number') return;
+      const ll = [u.latitude, u.longitude];
+      if (!marker) {
+        marker = L.marker(ll, { icon: createMapIcon('#F44336', '', { pulse: true }) }).addTo(map);
+        marker.on('mouseover', () => marker.openPopup());
+        marker.on('mouseout', () => marker.closePopup());
+      } else {
+        marker.setLatLng(ll);
+      }
+      marker.bindPopup(`
+        <div class="user-popup">
+          <h4>${u.username || 'User'}</h4>
+          <p>Lat: ${formatCoordinate(u.latitude)}</p>
+          <p>Lng: ${formatCoordinate(u.longitude)}</p>
+          <p>Speed: ${u.speed || '0'} km/h</p>
+          <p>Updated: ${u.formattedTime || formatTimestamp(u.lastUpdate)}</p>
+        </div>
+      `);
+      map.setView(ll, 16);
+    }
+
+    socket.on('connect', () => socket.emit('watchJoin', { token }));
+    socket.on('watchInit', (payload) => {
+      banner.textContent = 'Connected.';
+      update(payload && payload.user);
+      setBanner(payload && payload.sos);
+    });
+    socket.on('watchUpdate', (payload) => {
+      update(payload && payload.user);
+      setBanner(payload && payload.sos);
+    });
+  </script>
+</body>
+</html>
+
+

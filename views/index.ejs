@@ -93,6 +93,10 @@
             border-bottom: 1px solid #eee;
             cursor: pointer;
             transition: background-color 0.2s;
+            display: flex;
+            justify-content: space-between;
+            gap: 8px;
+            align-items: center;
         }
         
         .user-item:hover {
@@ -103,6 +107,43 @@
         .user-item.selected {
             background-color: #e3f2fd;
             border-left: 3px solid #2196F3;
+        }
+        
+        .user-item .meta {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            min-width: 0;
+        }
+
+        .user-item .meta strong {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .user-item .actions {
+            display: flex;
+            gap: 6px;
+            flex-shrink: 0;
+        }
+
+        .user-item .small-btn {
+            padding: 6px 10px;
+            font-size: 12px;
+            border-radius: 6px;
+        }
+
+        .user-item .select-checkbox {
+            width: 18px;
+            height: 18px;
+        }
+
+        @media (max-width: 480px) {
+            .user-item .select-checkbox {
+                width: 22px;
+                height: 22px;
+            }
         }
         
         
@@ -156,17 +197,129 @@
         }
     </style>
 </head>
-<body>
+<body data-username="<%= authUser && authUser.username ? authUser.username : '' %>" data-role="<%= authUser && authUser.role ? authUser.role : '' %>">
+    <div class="enable-alerts-overlay" id="enableAlertsOverlay">
+        <div class="enable-alerts-card">
+            <h2>Enable Alerts</h2>
+            <p>This app uses sound/vibration for SOS and safety check-ins.</p>
+            <p><strong>Tap “Enable Alerts” once</strong> so your browser allows audio.</p>
+            <div class="status-actions" style="margin-top:12px;">
+                <button class="btn btn-primary" id="enableAlertsBtn" type="button" style="font-size:16px; padding:12px 16px;">Enable Alerts</button>
+                <button class="btn btn-muted" id="skipAlertsBtn" type="button" style="font-size:14px; padding:10px 12px;">Continue without sound</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="status-banner" id="statusBanner">
+        <div id="statusText"> </div>
+        <div class="status-actions" id="statusActions"></div>
+    </div>
+
+    <div class="alert-overlay" id="alertOverlay">
+        <div class="alert-card alert-flash">
+            <h2 id="alertTitle">SOS Alert</h2>
+            <div id="alertBody" class="mini"></div>
+            <div class="status-actions" id="alertActions" style="margin-top:10px;"></div>
+        </div>
+    </div>
+
+    <div class="sos-topbar">
+        <button class="btn btn-danger sos-btn-big" id="sosBtn" type="button">SOS</button>
+        <button class="btn alerts-btn" id="alertsSettingsBtn" type="button">Alerts</button>
+    </div>
+
+    <% if (!authUser) { %>
+        <div class="admin-fab">
+            <a href="/admin" class="btn btn-muted" style="text-decoration:none;">Admin Login</a>
+        </div>
+    <% } %>
     
     <div id="map"></div>
     
     
     <div class="info-panel">
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
+            <div class="mini">
+                <% if (authUser && authUser.role === 'admin') { %>
+                    Logged in as <strong><%= authUser.username %></strong> (admin)
+                <% } %>
+            </div>
+            <% if (authUser && authUser.role === 'admin') { %>
+                <form method="POST" action="/logout" style="margin:0;">
+                    <button class="btn btn-muted" type="submit">Logout</button>
+                </form>
+            <% } %>
+        </div>
         
+        <% const isAdmin = authUser && authUser.role === 'admin'; %>
         <div class="user-name">
-            <input type="text" id="usernameInput" placeholder="Your name">
+            <input type="text" id="usernameInput" placeholder="Your name" value="<%= authUser && authUser.username ? authUser.username : '' %>">
             <button id="updateNameBtn">Update</button>
         </div>
+        
+        <div style="display:flex; gap:8px; margin-bottom:10px; flex-wrap:wrap;">
+            <button class="btn btn-primary" id="imOkBtn" type="button">I'm OK</button>
+        </div>
+
+        <div style="display:flex; gap:8px; align-items:center; margin-bottom:10px; flex-wrap:wrap;">
+            <label class="mini" style="display:flex; align-items:center; gap:6px;">
+                <input type="checkbox" id="keep48Toggle">
+                Keep my last location for 48h after disconnect
+            </label>
+        </div>
+
+        <% if (isAdmin) { %>
+            <div style="display:flex; gap:8px; align-items:center; margin: 8px 0 10px 0; flex-wrap:wrap;">
+                <span class="mini">Apply to:</span>
+                <select id="adminTargetSelect" style="flex:1; min-width: 180px; padding:6px; border:1px solid #ccc; border-radius:6px;"></select>
+            </div>
+            <div style="display:flex; gap:10px; align-items:center; margin-bottom:10px; flex-wrap:wrap;">
+                <label style="display:flex; gap:6px; align-items:center;">
+                    <input type="checkbox" id="autoSosToggle">
+                    Auto-SOS
+                </label>
+                <label class="mini" style="display:flex; gap:6px; align-items:center;">
+                    No-move (min)
+                    <input id="autoNoMoveMin" type="number" min="1" step="1" value="5" style="width:70px; padding:6px; border:1px solid #ccc; border-radius:6px;" />
+                </label>
+                <label class="mini" style="display:flex; gap:6px; align-items:center;">
+                    Hard-stop (min)
+                    <input id="autoHardStopMin" type="number" min="1" step="1" value="2" style="width:70px; padding:6px; border:1px solid #ccc; border-radius:6px;" />
+                </label>
+                <label style="display:flex; gap:6px; align-items:center;">
+                    <input type="checkbox" id="geofenceToggle">
+                    Geofence
+                </label>
+                <input id="geofenceRadius" type="number" min="100" step="100" value="1500" style="width:90px; padding:6px; border:1px solid #ccc; border-radius:6px;" />
+                <span class="mini">m</span>
+            </div>
+            <div style="display:flex; gap:10px; align-items:center; margin-bottom:10px; flex-wrap:wrap;">
+                <label style="display:flex; gap:6px; align-items:center;">
+                    <input type="checkbox" id="checkInToggle">
+                    I’m OK check-in
+                </label>
+                <label class="mini" style="display:flex; gap:6px; align-items:center;">
+                    Interval (min)
+                    <input id="checkInIntervalMin" type="number" min="1" step="1" value="5" style="width:70px; padding:6px; border:1px solid #ccc; border-radius:6px;" />
+                </label>
+                <label class="mini" style="display:flex; gap:6px; align-items:center;">
+                    Overdue after (min)
+                    <input id="checkInOverdueMin" type="number" min="1" step="1" value="7" style="width:80px; padding:6px; border:1px solid #ccc; border-radius:6px;" />
+                </label>
+            </div>
+            <div style="display:flex; gap:10px; align-items:center; margin-bottom:10px; flex-wrap:wrap;">
+                <label class="mini" style="display:flex; gap:6px; align-items:center;">
+                    <input type="checkbox" id="keepForeverToggle">
+                    Keep selected user forever (no purge)
+                </label>
+            </div>
+            <div style="display:flex; gap:8px; align-items:center; margin-bottom:10px;">
+                <button class="btn btn-primary" id="adminApplyBtn" type="button">Apply / Update</button>
+                <span class="mini">
+                    Check-in rule: user must tap “I’m OK” at least every interval; if overdue, admin gets an alert.
+                </span>
+            </div>
+        <% } %>
         
         
         <h3>Your Location</h3>
@@ -213,11 +366,11 @@
         const DEBUG = false;
 
         const map = L.map('map').setView([0, 0], 2);
-
+        
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
         }).addTo(map);
-
+        
         let marker = null;
         let path = null;
         let positions = [];
@@ -237,8 +390,11 @@
         let distanceLine = null;
         let distanceLabel = null;
 
-        const socket = io();
-
+        const storedClientId = localStorage.getItem('clientId');
+        const clientId = storedClientId || (crypto && crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + '-' + Math.random().toString(16).slice(2));
+        if (!storedClientId) localStorage.setItem('clientId', clientId);
+        const socket = io({ auth: { clientId } });
+        
         const latElement = document.getElementById('latitude');
         const lngElement = document.getElementById('longitude');
         const speedElement = document.getElementById('speed');
@@ -254,16 +410,420 @@
         const user2NameElement = document.getElementById('user2Name');
         const userDistanceElement = document.getElementById('userDistance');
         const clearSelectionButton = document.getElementById('clearSelection');
+        const sosBtn = document.getElementById('sosBtn');
+        const imOkBtn = document.getElementById('imOkBtn');
+        const keep48Toggle = document.getElementById('keep48Toggle');
+        const autoSosToggle = document.getElementById('autoSosToggle');
+        const autoNoMoveMin = document.getElementById('autoNoMoveMin');
+        const autoHardStopMin = document.getElementById('autoHardStopMin');
+        const geofenceToggle = document.getElementById('geofenceToggle');
+        const geofenceRadius = document.getElementById('geofenceRadius');
+        const adminTargetSelect = document.getElementById('adminTargetSelect');
+        const adminApplyBtn = document.getElementById('adminApplyBtn');
+        const checkInToggle = document.getElementById('checkInToggle');
+        const checkInIntervalMin = document.getElementById('checkInIntervalMin');
+        const checkInOverdueMin = document.getElementById('checkInOverdueMin');
+        const keepForeverToggle = document.getElementById('keepForeverToggle');
+        const statusBanner = document.getElementById('statusBanner');
+        const statusText = document.getElementById('statusText');
+        const statusActions = document.getElementById('statusActions');
+        const alertOverlay = document.getElementById('alertOverlay');
+        const alertTitle = document.getElementById('alertTitle');
+        const alertBody = document.getElementById('alertBody');
+        const alertActions = document.getElementById('alertActions');
 
         
         
+        if (updateNameBtn) {
         updateNameBtn.addEventListener('click', function() {
             const newUsername = usernameInput.value.trim();
             if (newUsername) {
                 myUsername = newUsername;
                 socket.emit('updateUsername', newUsername);
+                    scheduleOtherUsersListUpdate();
+                }
+            });
+        }
+
+        function setBanner(type, text, actions) {
+            statusBanner.classList.remove('sos', 'info', 'active');
+            statusActions.innerHTML = '';
+            if (!text) return;
+            statusBanner.classList.add('active');
+            statusBanner.classList.add(type === 'sos' ? 'sos' : 'info');
+            statusText.textContent = text;
+            (actions || []).forEach(a => {
+                const b = document.createElement('button');
+                b.className = `btn ${a.kind || 'btn-muted'}`;
+                b.textContent = a.label;
+                b.addEventListener('click', a.onClick);
+                statusActions.appendChild(b);
+            });
+        }
+
+        const enableAlertsOverlay = document.getElementById('enableAlertsOverlay');
+        const enableAlertsBtn = document.getElementById('enableAlertsBtn');
+        const skipAlertsBtn = document.getElementById('skipAlertsBtn');
+        const alertsSettingsBtn = document.getElementById('alertsSettingsBtn');
+
+        let userInteracted = (localStorage.getItem('alertsEnabled') === '1');
+        let pendingAlarmMs = 0;
+        function hideEnableAlerts() {
+            if (enableAlertsOverlay) enableAlertsOverlay.classList.remove('active');
+        }
+        function showEnableAlerts() {
+            if (enableAlertsOverlay) enableAlertsOverlay.classList.add('active');
+        }
+        function unlockAudioOnce() {
+            try {
+                const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                const ctx = new AudioCtx();
+                // create a short beep to unlock (and confirm to the user)
+                if (ctx.state === 'suspended') ctx.resume();
+                const o = ctx.createOscillator();
+                const g = ctx.createGain();
+                o.type = 'sine';
+                o.frequency.value = 880;
+                g.gain.value = 0.05;
+                o.connect(g);
+                g.connect(ctx.destination);
+                o.start();
+                setTimeout(() => { o.stop(); ctx.close(); }, 180);
+            } catch (_) {}
+            try { if (navigator.vibrate) navigator.vibrate([120]); } catch (_) {}
+        }
+
+        if (!userInteracted) showEnableAlerts();
+        if (enableAlertsBtn) {
+            enableAlertsBtn.addEventListener('click', () => {
+                userInteracted = true;
+                localStorage.setItem('alertsEnabled', '1');
+                unlockAudioOnce();
+                hideEnableAlerts();
+                if (pendingAlarmMs > 0) {
+                    playAlarmForMs(pendingAlarmMs);
+                    pendingAlarmMs = 0;
+                }
+            });
+        }
+        if (skipAlertsBtn) {
+            skipAlertsBtn.addEventListener('click', () => {
+                userInteracted = false;
+                localStorage.setItem('alertsEnabled', '0');
+                hideEnableAlerts();
+            });
+        }
+        if (alertsSettingsBtn) {
+            alertsSettingsBtn.addEventListener('click', () => {
+                showEnableAlerts();
+            });
+        }
+
+        let alarmTimer = null;
+        let alarmStopAt = 0;
+        const silencedSos = new Set(); // socketIds acknowledged by this client; don't re-alarm on updates
+        let lastOwnSosActive = false;
+
+        function stopAlarmLoop() {
+            if (alarmTimer) {
+                clearInterval(alarmTimer);
+                alarmTimer = null;
+            }
+            alarmStopAt = 0;
+        }
+
+        function playAlarmOnce() {
+            // Best-effort: browsers may block audio until user interacts.
+            if (!userInteracted) return;
+            try {
+                const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                const ctx = new AudioCtx();
+                const o = ctx.createOscillator();
+                const g = ctx.createGain();
+                o.type = 'square';
+                o.frequency.value = 880;
+                g.gain.value = 0.05;
+                o.connect(g);
+                g.connect(ctx.destination);
+                o.start();
+                setTimeout(() => { o.stop(); ctx.close(); }, 800);
+            } catch (_) {}
+            try { if (navigator.vibrate) navigator.vibrate([200, 100, 200, 100, 400]); } catch (_) {}
+        }
+
+        function playAlarmForMs(totalMs) {
+            stopAlarmLoop();
+            if (!userInteracted) {
+                pendingAlarmMs = totalMs || 0;
+                showEnableAlerts();
+                return;
+            }
+            alarmStopAt = Date.now() + (totalMs || 0);
+            playAlarmOnce();
+            alarmTimer = setInterval(() => {
+                if (Date.now() >= alarmStopAt) {
+                    stopAlarmLoop();
+                    return;
+                }
+                playAlarmOnce();
+            }, 1200);
+        }
+
+        function showAlert(title, body, actions, alarmMs) {
+            if (!alertOverlay) return;
+            alertTitle.textContent = title;
+            alertBody.textContent = body || '';
+            alertActions.innerHTML = '';
+            (actions || []).forEach(a => {
+                const b = document.createElement('button');
+                b.className = `btn ${a.kind || 'btn-muted'}`;
+                b.textContent = a.label;
+                b.addEventListener('click', a.onClick);
+                alertActions.appendChild(b);
+            });
+            alertOverlay.classList.add('active');
+            if (alarmMs) playAlarmForMs(alarmMs);
+        }
+
+        function hideAlert() {
+            if (!alertOverlay) return;
+            alertOverlay.classList.remove('active');
+            stopAlarmLoop();
+        }
+
+        function deviceType() {
+            const ua = navigator.userAgent || '';
+            return /Mobi|Android/i.test(ua) ? 'Mobile' : 'Desktop';
+        }
+
+        async function pushProfile() {
+            let batteryPct = null;
+            try {
+                if (navigator.getBattery) {
+                    const b = await navigator.getBattery();
+                    batteryPct = Math.round((b.level || 0) * 100);
+                }
+            } catch (_) {}
+            let connectionQuality = 'Unknown';
+            try {
+                const ping = socket && socket.io && socket.io.engine ? socket.io.engine.ping : null;
+                if (typeof ping === 'number') {
+                    if (ping <= 80) connectionQuality = 'Good';
+                    else if (ping <= 200) connectionQuality = 'OK';
+                    else connectionQuality = 'Poor';
+                }
+            } catch (_) {}
+            socket.emit('profileUpdate', { batteryPct, deviceType: deviceType(), connectionQuality });
+        }
+
+        function getTargetUserById(id) {
+            if (id === 'me') return { socketId: mySocketId, username: myUsername, latitude: myLocation && myLocation.latitude, longitude: myLocation && myLocation.longitude };
+            return otherUsers.get(id) || null;
+        }
+
+        function currentAutoRuleMinutes() {
+            const noMove = autoNoMoveMin ? Number(autoNoMoveMin.value || 0) : 5;
+            const hardStop = autoHardStopMin ? Number(autoHardStopMin.value || 0) : 2;
+            return {
+                noMoveMinutes: Number.isFinite(noMove) && noMove > 0 ? noMove : 5,
+                hardStopMinutes: Number.isFinite(hardStop) && hardStop > 0 ? hardStop : 2
+            };
+        }
+
+        function populateAdminControlsFromTarget() {
+            if (!IS_ADMIN) return;
+            const targetId = getSelectedTargetId();
+            const target = targetId ? getTargetUserById(targetId) : null;
+            if (!target) return;
+            if (autoSosToggle && target.autoSos) autoSosToggle.checked = !!target.autoSos.enabled;
+            if (autoNoMoveMin && target.autoSos && typeof target.autoSos.noMoveMinutes === 'number') autoNoMoveMin.value = String(target.autoSos.noMoveMinutes);
+            if (autoHardStopMin && target.autoSos && typeof target.autoSos.hardStopMinutes === 'number') autoHardStopMin.value = String(target.autoSos.hardStopMinutes);
+            if (geofenceToggle && target.geofence) geofenceToggle.checked = !!target.geofence.enabled;
+            if (geofenceRadius && target.geofence && typeof target.geofence.radiusM === 'number' && target.geofence.radiusM) geofenceRadius.value = String(target.geofence.radiusM);
+            if (checkInToggle && target.checkIn) checkInToggle.checked = !!target.checkIn.enabled;
+            if (checkInIntervalMin && target.checkIn && typeof target.checkIn.intervalMinutes === 'number') checkInIntervalMin.value = String(target.checkIn.intervalMinutes);
+            if (checkInOverdueMin && target.checkIn && typeof target.checkIn.overdueMinutes === 'number') checkInOverdueMin.value = String(target.checkIn.overdueMinutes);
+            if (keepForeverToggle && target.retention) keepForeverToggle.checked = (target.retention.mode === 'forever');
+        }
+
+        function applyAdminSettings() {
+            if (!IS_ADMIN) return;
+            const targetId = getSelectedTargetId();
+            const target = targetId ? getTargetUserById(targetId) : null;
+            const socketId = target && target.socketId ? target.socketId : undefined;
+
+            if (autoSosToggle) {
+                const mins = currentAutoRuleMinutes();
+                socket.emit('setAutoSos', {
+                    socketId,
+                    enabled: !!autoSosToggle.checked,
+                    noMoveMinutes: mins.noMoveMinutes,
+                    hardStopMinutes: mins.hardStopMinutes,
+                    geofence: !!(geofenceToggle && geofenceToggle.checked)
+                });
+            }
+
+            if (geofenceToggle) {
+                const r = geofenceRadius ? Number(geofenceRadius.value || 0) : 0;
+                if (!geofenceToggle.checked) {
+                    socket.emit('setGeofence', { socketId, enabled: false });
+                } else {
+                    if (!r) {
+                        setBanner('info', 'Set a geofence radius (meters) first, then click Apply.', []);
+                        geofenceToggle.checked = false;
+                        return;
+                    }
+                    const hasTargetLoc = target && typeof target.latitude === 'number' && typeof target.longitude === 'number';
+                    const hasMyLoc = myLocation && typeof myLocation.latitude === 'number' && typeof myLocation.longitude === 'number';
+                    if (!hasTargetLoc && !hasMyLoc) {
+                        setBanner('info', 'Start Tracking (or select a user with a location) to set geofence center.', []);
+                        geofenceToggle.checked = false;
+                        socket.emit('setGeofence', { socketId, enabled: false });
+                        return;
+                    }
+                    const centerLat = hasTargetLoc ? target.latitude : myLocation.latitude;
+                    const centerLng = hasTargetLoc ? target.longitude : myLocation.longitude;
+                    socket.emit('setGeofence', { socketId, enabled: true, centerLat, centerLng, radiusM: r });
+                }
+            }
+
+            // I’m OK / check-in rules
+            if (checkInToggle) {
+                const intervalMinutes = checkInIntervalMin ? Number(checkInIntervalMin.value || 0) : 5;
+                const overdueMinutes = checkInOverdueMin ? Number(checkInOverdueMin.value || 0) : 7;
+                socket.emit('setCheckInRules', {
+                    socketId,
+                    enabled: !!checkInToggle.checked,
+                    intervalMinutes: (Number.isFinite(intervalMinutes) && intervalMinutes > 0) ? intervalMinutes : 5,
+                    overdueMinutes: (Number.isFinite(overdueMinutes) && overdueMinutes > 0) ? overdueMinutes : 7
+                });
+            }
+
+            // Retention (admin only): keep selected user forever
+            if (keepForeverToggle && socketId) {
+                socket.emit('setRetentionForever', { socketId, forever: !!keepForeverToggle.checked });
+            }
+
+            setBanner('info', 'Admin settings applied.', []);
+            setTimeout(() => setBanner(null, null, null), 1500);
+        }
+
+        let adminTargetId = 'me';
+        let adminTargetRefreshScheduled = false;
+        let lastAdminOptionsKey = '';
+
+        function getSelectedTargetId() {
+            if (!IS_ADMIN || !adminTargetSelect) return null;
+            return adminTargetId || 'me';
+        }
+
+        function adminOptionsKey() {
+            const ids = ['me'];
+            otherUsers.forEach(u => ids.push(u.socketId));
+            ids.sort();
+            return ids.join('|');
+        }
+
+        function refreshAdminTargetOptionsNow() {
+            if (!IS_ADMIN || !adminTargetSelect) return;
+            // Don't fight the user while they're interacting with the dropdown
+            if (document.activeElement === adminTargetSelect) return;
+
+            const key = adminOptionsKey();
+            if (key === lastAdminOptionsKey) return;
+            lastAdminOptionsKey = key;
+
+            adminTargetSelect.innerHTML = '';
+            const optMe = document.createElement('option');
+            optMe.value = 'me';
+            optMe.textContent = `${myUsername || 'Me'} (me)`;
+            adminTargetSelect.appendChild(optMe);
+
+            otherUsers.forEach(u => {
+                const o = document.createElement('option');
+                o.value = u.socketId;
+                o.textContent = `${u.username || u.socketId}`;
+                adminTargetSelect.appendChild(o);
+            });
+
+            // restore selected target if still present
+            const exists = [...adminTargetSelect.options].some(o => o.value === adminTargetId);
+            adminTargetSelect.value = exists ? adminTargetId : 'me';
+            adminTargetId = adminTargetSelect.value;
+        }
+
+        function refreshAdminTargetOptions() {
+            if (!IS_ADMIN || !adminTargetSelect) return;
+            if (adminTargetRefreshScheduled) return;
+            adminTargetRefreshScheduled = true;
+            requestAnimationFrame(() => {
+                adminTargetRefreshScheduled = false;
+                refreshAdminTargetOptionsNow();
+            });
+        }
+
+        if (adminTargetSelect) {
+            adminTargetSelect.addEventListener('change', () => {
+                adminTargetId = adminTargetSelect.value || 'me';
+                populateAdminControlsFromTarget();
+            });
+            adminTargetSelect.addEventListener('blur', () => {
+                refreshAdminTargetOptionsNow();
+            });
+        }
+
+        setInterval(() => {
+            if (socket && socket.connected) pushProfile();
+        }, 10000);
+
+        sosBtn.addEventListener('click', () => {
+            const active = sosBtn.dataset.active === '1';
+            if (!active) {
+                socket.emit('triggerSOS', { reason: 'SOS' });
+            } else {
+                socket.emit('cancelSOS');
             }
         });
+
+        imOkBtn.addEventListener('click', () => {
+            socket.emit('checkInAck');
+            setBanner('info', 'Check-in sent.', []);
+            setTimeout(() => setBanner(null, null, null), 2000);
+        });
+
+        if (keep48Toggle) {
+            keep48Toggle.addEventListener('change', () => {
+                socket.emit('setRetention', { mode: keep48Toggle.checked ? '48h' : 'default' });
+                setBanner('info', keep48Toggle.checked ? 'Will keep your last location for 48h after disconnect.' : 'Your location will be removed on disconnect.', []);
+                setTimeout(() => setBanner(null, null, null), 2000);
+            });
+        }
+
+        if (adminApplyBtn) adminApplyBtn.addEventListener('click', applyAdminSettings);
+
+        // Visualize geofences for users (admin page only)
+        const geofenceCircles = new Map();
+        function upsertGeofenceCircle(user) {
+            if (!IS_ADMIN || !user || !user.socketId) return;
+            const enabled = user.geofence && user.geofence.enabled;
+            const cLat = enabled ? user.geofence.centerLat : null;
+            const cLng = enabled ? user.geofence.centerLng : null;
+            const r = enabled ? Number(user.geofence.radiusM || 0) : 0;
+            const key = user.socketId;
+            const existing = geofenceCircles.get(key);
+            if (!enabled || typeof cLat !== 'number' || typeof cLng !== 'number' || !(r > 0)) {
+                if (existing) { map.removeLayer(existing); geofenceCircles.delete(key); }
+                return;
+            }
+            if (!existing) {
+                const circle = L.circle([cLat, cLng], { radius: r, color: '#9C27B0', weight: 2, fillColor: '#9C27B0', fillOpacity: 0.08 });
+                circle.addTo(map);
+                geofenceCircles.set(key, circle);
+            } else {
+                existing.setLatLng([cLat, cLng]);
+                existing.setRadius(r);
+            }
+        }
         
         
         clearSelectionButton.addEventListener('click', function(e) {
@@ -294,33 +854,36 @@
 
             const clickedLat = e.latlng.lat;
             const clickedLng = e.latlng.lng;
-
+            
             const posName = `Position (${formatCoordinate(clickedLat)}, ${formatCoordinate(clickedLng)})`;
             const clickId = `click-${Date.now()}`;
-
+            
             handleUserSelection(clickId, posName, {
                 latitude: clickedLat,
                 longitude: clickedLng
             });
-
+            
             const isSelected = selectedUsers.some(user => user.id === clickId);
             if (isSelected) {
                 const clickMarker = L.marker([clickedLat, clickedLng], {
                     icon: createMapIcon('#9C27B0', '')
                 }).addTo(map);
-
+                
                 otherUserMarkers.set(clickId, clickMarker);
-
+                
                 clickMarker.bindPopup(`
                     <div class="user-popup">
                         <h4>Clicked Position</h4>
                         <p>Lat: ${formatCoordinate(clickedLat)}</p>
                         <p>Lng: ${formatCoordinate(clickedLng)}</p>
                     </div>
-                `).openPopup();
+                `);
+                clickMarker.on('mouseover', () => clickMarker.openPopup());
+                clickMarker.on('mouseout', () => clickMarker.closePopup());
+                clickMarker.openPopup();
             }
         });
-
+        
         
         
         function startTracking() {
@@ -354,9 +917,9 @@
             positions = [];
             timestamps = [];
             totalDistance = 0;
-
+            
             distanceElement.textContent = '0';
-
+            
             if (marker) {
                 map.removeLayer(marker);
                 marker = null;
@@ -366,22 +929,22 @@
                 map.removeLayer(path);
                 path = null;
             }
-
+            
             otherUserMarkers.forEach((marker, id) => {
                 if (id.startsWith('click-')) {
                     map.removeLayer(marker);
                     otherUserMarkers.delete(id);
                 }
             });
-
+            
             map.setView([0, 0], 2);
-
+            
             if (tracking) {
                 stopTracking();
                 trackButton.textContent = 'Start Tracking';
                 tracking = false;
             }
-
+            
             clearSelectedUsers();
         }
         
@@ -392,26 +955,26 @@
             const speed = position.coords.speed ? (position.coords.speed * 3.6).toFixed(1) : '0';
             const timestamp = new Date().toLocaleTimeString();
             const currentTime = Date.now();
-
+            
             myLocation = { latitude, longitude };
-
+            
             latElement.textContent = formatCoordinate(latitude);
             lngElement.textContent = formatCoordinate(longitude);
             speedElement.textContent = speed;
             timestampElement.textContent = timestamp;
-
+            
             if (positions.length > 0) {
                 const [prevLat, prevLng] = positions[positions.length - 1];
                 const distance = calculateDistance(prevLat, prevLng, latitude, longitude);
                 totalDistance += distance;
                 distanceElement.textContent = Math.round(totalDistance);
             }
-
+            
             updateMap(latitude, longitude);
-
+            
             positions.push([latitude, longitude]);
             timestamps.push(currentTime);
-
+            
             socket.emit('position', {
                 latitude,
                 longitude,
@@ -419,14 +982,15 @@
                 timestamp: currentTime,
                 formattedTime: timestamp
             });
-
+            
             updateDistanceBetweenSelectedUsers();
+            if (socket && socket.connected) pushProfile();
         }
         
         
         function handleError(error) {
             console.error('Error getting location:', error.message);
-
+            
             if (error.code === error.PERMISSION_DENIED) {
 
                 alert('Location access denied. Please enable location permissions in your browser settings.');
@@ -438,11 +1002,11 @@
                 errorMessage.style.color = '#f44336';
                 errorMessage.style.padding = '5px 0';
                 errorMessage.style.fontSize = '0.9em';
-
+                
                 const locationInfo = latElement.closest('p');
                 if (locationInfo && !document.querySelector('.location-error')) {
                     locationInfo.parentNode.insertBefore(errorMessage, locationInfo);
-
+                    
                     setTimeout(() => {
                         if (errorMessage.parentNode) {
                             errorMessage.parentNode.removeChild(errorMessage);
@@ -455,7 +1019,7 @@
         
         function updateMap(lat, lng) {
             const newLatLng = [lat, lng];
-
+            
             if (!marker) {
 
                 marker = L.marker(newLatLng).addTo(map)
@@ -464,6 +1028,8 @@
                         <p>Lat: ${formatCoordinate(lat)}</p>
                         <p>Lng: ${formatCoordinate(lng)}</p>
                     </div>`);
+                marker.on('mouseover', () => marker.openPopup());
+                marker.on('mouseout', () => marker.closePopup());
             } else {
 
                 marker.setLatLng(newLatLng);
@@ -473,7 +1039,7 @@
                     <p>Lng: ${formatCoordinate(lng)}</p>
                 </div>`);
             }
-
+            
             if (path) {
                 map.removeLayer(path);
             }
@@ -486,10 +1052,10 @@
                     className: 'tracking-path'
                 }).addTo(map);
             }
-
+            
             map.setView(newLatLng, 16);
         }
-
+        
         
         
         function updateOtherUsersList() {
@@ -498,54 +1064,82 @@
                 otherUsersElement.innerHTML = '<p class="no-users">No other users online</p>';
                 return;
             }
-
+            
             otherUsersElement.innerHTML = '';
-
+            
             if (myLocation) {
                 const myItem = document.createElement('div');
                 myItem.className = 'user-item';
+                myItem.dataset.id = 'me';
+                myItem.dataset.name = myUsername || 'You';
+                myItem.dataset.lat = String(myLocation.latitude);
+                myItem.dataset.lng = String(myLocation.longitude);
 
                 if (selectedUsers.some(user => user.id === 'me')) {
                     myItem.classList.add('selected');
                 }
                 
                 myItem.innerHTML = `
+                    <div class="meta">
                     <strong>${myUsername || 'You'} (You)</strong>
-                    <div>Last update: ${timestampElement.textContent}</div>
+                        <div class="mini">Last update: ${timestampElement.textContent}</div>
+                    </div>
+                    <div class="actions">
+                        <label class="mini" style="display:flex; align-items:center; gap:6px;">
+                            <input class="select-checkbox" type="checkbox" data-action="select" ${selectedUsers.some(u => u.id === 'me') ? 'checked' : ''}>
+                            Select
+                        </label>
+                    </div>
                 `;
-
-                myItem.addEventListener('click', () => {
-                    handleUserSelection('me', myUsername || 'You', myLocation);
-                });
                 
                 otherUsersElement.appendChild(myItem);
             }
-
+            
             otherUsers.forEach(user => {
                 if (user.socketId !== mySocketId && user.latitude && user.longitude) {
                     const userItem = document.createElement('div');
                     userItem.className = 'user-item';
+                    userItem.dataset.id = user.socketId;
+                    userItem.dataset.name = user.username || user.socketId;
+                    userItem.dataset.lat = String(user.latitude);
+                    userItem.dataset.lng = String(user.longitude);
 
                     if (selectedUsers.some(selected => selected.id === user.socketId)) {
                         userItem.classList.add('selected');
                     }
                     
-                    userItem.innerHTML = `
-                        <strong>${user.username}</strong>
-                        <div>Last update: ${user.formattedTime || formatTimestamp(user.lastUpdate)}</div>
-                    `;
+                    const isOffline = (user.online === false);
+                    const expiresAt = (typeof user.offlineExpiresAt === 'number') ? user.offlineExpiresAt : null;
+                    const expiresIn = (() => {
+                        if (!isOffline) return 'Online';
+                        if (!expiresAt) return 'Offline • kept forever';
+                        const ms = expiresAt - Date.now();
+                        if (ms <= 0) return 'Offline • expiring soon';
+                        const mins = Math.floor(ms / 60000);
+                        const h = Math.floor(mins / 60);
+                        const m = mins % 60;
+                        if (h <= 0) return `Offline • expires in ${m}m`;
+                        return `Offline • expires in ${h}h ${m}m`;
+                    })();
 
-                    userItem.addEventListener('click', () => {
-                        handleUserSelection(user.socketId, user.username, {
-                            latitude: user.latitude,
-                            longitude: user.longitude
-                        });
-                    });
+                    userItem.innerHTML = `
+                        <div class="meta">
+                            <strong>${user.username}</strong>
+                            <div class="mini">${expiresIn}</div>
+                            <div class="mini">Last update: ${user.formattedTime || formatTimestamp(user.lastUpdate)}</div>
+                        </div>
+                        <div class="actions">
+                            <label class="mini" style="display:flex; align-items:center; gap:6px;">
+                                <input class="select-checkbox" type="checkbox" data-action="select" ${selectedUsers.some(s => s.id === user.socketId) ? 'checked' : ''}>
+                                Select
+                            </label>
+                        </div>
+                    `;
                     
                     otherUsersElement.appendChild(userItem);
                 }
             });
-
+            
             if (otherUsersElement.children.length === 0) {
                 otherUsersElement.innerHTML = '<p class="no-users">No other users online</p>';
             } else if (otherUsersElement.children.length === 1 && myLocation) {
@@ -556,9 +1150,91 @@
                 otherUsersElement.appendChild(waitMessage);
             }
         }
+        
+        function focusOnLocation(id, location) {
+            if (!location || typeof location.latitude !== 'number' || typeof location.longitude !== 'number') return;
+            const latlng = [location.latitude, location.longitude];
+            map.setView(latlng, 16);
+            if (id === 'me' && marker) {
+                marker.openPopup();
+                return;
+            }
+            if (id === 'me' && !marker) {
+                // ensure marker exists for self if we have a location
+                updateMap(location.latitude, location.longitude);
+                if (marker) marker.openPopup();
+                return;
+            }
+            let m = otherUserMarkers.get(id);
+            if (!m) {
+                const u = otherUsers.get(id);
+                if (u && typeof u.latitude === 'number' && typeof u.longitude === 'number') {
+                    createOrUpdateUserMarker(u);
+                    m = otherUserMarkers.get(id);
+                }
+            }
+            if (m) m.openPopup();
+        }
+
+        // Event delegation for mobile-safe interactions in the user list:
+        // - Tap row: focus map + open popup
+        // - Toggle checkbox: select/deselect (max 2 handled by handleUserSelection)
+        otherUsersElement.addEventListener('pointerup', (e) => {
+            const cb = e.target && e.target.matches && e.target.matches('input[data-action="select"]');
+            if (cb) return;
+            const row = e.target && e.target.closest ? e.target.closest('.user-item') : null;
+            if (!row) return;
+            if (e.target && e.target.closest && e.target.closest('.actions')) return;
+            const id = row.dataset.id;
+            const lat = parseFloat(row.dataset.lat);
+            const lng = parseFloat(row.dataset.lng);
+            if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+            focusOnLocation(id, { latitude: lat, longitude: lng });
+        });
+
+        otherUsersElement.addEventListener('change', (e) => {
+            const input = e.target;
+            if (!input || !input.matches || !input.matches('input[data-action="select"]')) return;
+            const row = input.closest('.user-item');
+            if (!row) return;
+            const id = row.dataset.id;
+            const name = row.dataset.name || id;
+            const lat = parseFloat(row.dataset.lat);
+            const lng = parseFloat(row.dataset.lng);
+            if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+                input.checked = false;
+                return;
+            }
+            const loc = { latitude: lat, longitude: lng };
+            const isSelected = selectedUsers.some(s => s.id === id);
+            if (input.checked && !isSelected) handleUserSelection(id, name, loc);
+            if (!input.checked && isSelected) handleUserSelection(id, name, loc);
+        });
+
+        // Prevent "ghost taps" on mobile by avoiding list re-renders while the user is toggling checkboxes.
+        let userListInteractingUntil = 0;
+        function markUserListInteracting(ms) {
+            userListInteractingUntil = Math.max(userListInteractingUntil, Date.now() + (ms || 600));
+        }
+        // Capture pointerdown early so DOM isn't replaced before the browser dispatches the change event.
+        otherUsersElement.addEventListener('pointerdown', (e) => {
+            if (e.target && e.target.closest && e.target.closest('.actions')) {
+                markUserListInteracting(700);
+            }
+        }, true);
 
         let otherUsersListScheduled = false;
         function scheduleOtherUsersListUpdate() {
+            const waitMs = userListInteractingUntil - Date.now();
+            if (waitMs > 0) {
+                if (otherUsersListScheduled) return;
+                otherUsersListScheduled = true;
+                setTimeout(() => {
+                    otherUsersListScheduled = false;
+                    scheduleOtherUsersListUpdate();
+                }, waitMs + 20);
+                return;
+            }
             if (otherUsersListScheduled) return;
             otherUsersListScheduled = true;
             requestAnimationFrame(() => {
@@ -575,7 +1251,7 @@
             if (index !== -1) {
 
                 selectedUsers.splice(index, 1);
-
+                
                 if (id.startsWith('click-')) {
                     const marker = otherUserMarkers.get(id);
                     if (marker) {
@@ -595,17 +1271,17 @@
                             otherUserMarkers.delete(oldestId);
                         }
                     }
-
+                    
                     selectedUsers.shift();
                 }
-
+                
                 selectedUsers.push({
                     id: id,
                     name: name,
                     location: location
                 });
             }
-
+            
             scheduleOtherUsersListUpdate();
             updateDistanceBetweenSelectedUsers();
         }
@@ -622,9 +1298,9 @@
                     }
                 }
             });
-
+            
             selectedUsers = [];
-
+            
             if (distanceLine) {
                 map.removeLayer(distanceLine);
                 distanceLine = null;
@@ -634,9 +1310,9 @@
                 map.removeLayer(distanceLabel);
                 distanceLabel = null;
             }
-
+            
             distanceDisplay.classList.remove('active');
-
+            
             scheduleOtherUsersListUpdate();
         }
         
@@ -652,27 +1328,27 @@
                 map.removeLayer(distanceLabel);
                 distanceLabel = null;
             }
-
+            
             distanceDisplay.classList.remove('active');
-
+            
             if (selectedUsers.length !== 2) return;
             
             const user1 = selectedUsers[0];
             const user2 = selectedUsers[1];
-
+            
             user1NameElement.textContent = user1.name;
             user2NameElement.textContent = user2.name;
-
+            
             const distance = calculateDistance(
                 user1.location.latitude,
                 user1.location.longitude,
                 user2.location.latitude,
                 user2.location.longitude
             );
-
+            
             userDistanceElement.textContent = Math.round(distance) + ' m';
             distanceDisplay.classList.add('active');
-
+            
             distanceLine = L.polyline([
                 [user1.location.latitude, user1.location.longitude],
                 [user2.location.latitude, user2.location.longitude]
@@ -682,7 +1358,7 @@
                 opacity: 0.7,
                 dashArray: '5, 10'
             }).addTo(map);
-
+            
             const midpoint = [
                 (user1.location.latitude + user2.location.latitude) / 2,
                 (user1.location.longitude + user2.location.longitude) / 2
@@ -696,52 +1372,143 @@
             });
             
             distanceLabel = L.marker(midpoint, { icon: labelIcon }).addTo(map);
-
+            
             const bounds = L.latLngBounds(
                 [user1.location.latitude, user1.location.longitude],
                 [user2.location.latitude, user2.location.longitude]
             );
             map.fitBounds(bounds, { padding: [50, 50] });
         }
-
+        
         
         
         function createOrUpdateUserMarker(user) {
             const userLatLng = [user.latitude, user.longitude];
-
+            
             let userMarker = otherUserMarkers.get(user.socketId);
+            const sosActive = !!(user.sos && user.sos.active);
+            const autoEnabled = !!(user.autoSos && user.autoSos.enabled);
+            const isOffline = (user.online === false);
+            const markerColor = sosActive ? '#F44336' : (isOffline ? '#9E9E9E' : (autoEnabled ? '#2196F3' : '#FF5722'));
+            const markerText = sosActive ? '' : (autoEnabled ? 'A' : '');
             
             if (!userMarker) {
 
                 userMarker = L.marker(userLatLng, {
-                    icon: createMapIcon('#FF5722', '')
+                    icon: createMapIcon(markerColor, markerText, { pulse: sosActive })
                 }).addTo(map);
-
+                
                 otherUserMarkers.set(user.socketId, userMarker);
             } else {
 
                 userMarker.setLatLng(userLatLng);
+                userMarker.setIcon(createMapIcon(markerColor, markerText, { pulse: sosActive }));
             }
-
+            
             userMarker.bindPopup(`
                 <div class="user-popup">
                     <h4>${user.username}</h4>
+                    <p>Status: ${isOffline ? 'Offline' : 'Online'}</p>
                     <p>Lat: ${formatCoordinate(user.latitude)}</p>
                     <p>Lng: ${formatCoordinate(user.longitude)}</p>
                     <p>Speed: ${user.speed || '0'} km/h</p>
                     <p>Updated: ${user.formattedTime || formatTimestamp(user.lastUpdate)}</p>
+                    <p>Battery: ${typeof user.batteryPct === 'number' ? user.batteryPct + '%' : '-'}</p>
+                    <p>Device: ${user.deviceType || '-'}</p>
+                    <p>Connection: ${user.connectionQuality || '-'}</p>
+                    <p>Last seen: ${user.lastUpdate ? formatTimestamp(user.lastUpdate) : '-'}</p>
+                    ${user.sos && user.sos.active ? `<p style="color:#F44336; font-weight:700;">SOS: ${user.sos.reason || 'SOS'}</p>` : ``}
                 </div>
             `);
+            userMarker.on('mouseover', () => userMarker.openPopup());
+            userMarker.on('mouseout', () => userMarker.closePopup());
         }
 
         
         
+        const AUTH_USERNAME = document.body.dataset.username || '';
+        const IS_ADMIN = (document.body.dataset.role || '') === 'admin';
+
         socket.on('connect', () => {
             mySocketId = socket.id;
             if (DEBUG) console.log('Connected to server with ID:', mySocketId);
 
-            myUsername = "User-" + Math.floor(Math.random() * 10000);
-            usernameInput.value = myUsername;
+            myUsername = AUTH_USERNAME || ("User-" + Math.floor(Math.random() * 10000));
+            if (usernameInput) usernameInput.value = myUsername;
+            socket.emit('updateUsername', myUsername);
+            scheduleOtherUsersListUpdate();
+            pushProfile();
+            refreshAdminTargetOptions();
+            populateAdminControlsFromTarget();
+        });
+
+        socket.on('sosUpdate', (s) => {
+            if (!s) return;
+            const isMe = s.socketId === mySocketId;
+            const isGeofence = s.type === 'geofence';
+            // Geofence stays admin/owner only.
+            if (isGeofence && !IS_ADMIN && !isMe) return;
+
+            const ackList = (IS_ADMIN || isMe) && Array.isArray(s.acks) ? s.acks.map(a => a.by).filter(Boolean) : [];
+            const ackCount = typeof s.ackCount === 'number' ? s.ackCount : ackList.length;
+            const ackText = (IS_ADMIN || isMe)
+                ? (ackList.length ? `Acknowledged by ${ackList.join(', ')}` : 'Not acknowledged')
+                : (ackCount ? `Acknowledged (${ackCount})` : 'Not acknowledged');
+
+            if (isMe) {
+                sosBtn.dataset.active = s.active ? '1' : '0';
+                sosBtn.textContent = s.active ? 'Cancel SOS' : 'SOS';
+                if (s.active && s.token) {
+                    const link = `${window.location.origin}/watch/${s.token}`;
+                    setBanner('sos', `Your SOS is active: ${s.reason || 'SOS'}`, [
+                        { label: 'Copy watch link', kind: 'btn-muted', onClick: async () => { try { await navigator.clipboard.writeText(link); } catch(_) {} } }
+                    ]);
+                    // Owner should only get a small, non-looping alert (no long alarm).
+                    const justActivated = !lastOwnSosActive && !!s.active;
+                    lastOwnSosActive = true;
+                    if (justActivated) playAlarmOnce();
+                    // If someone acknowledged, stop any lingering alarm loop (defensive).
+                    if (ackCount > 0) stopAlarmLoop();
+                    showAlert('SOS ACTIVE', `${s.reason || 'SOS'} • ${ackText}`, [
+                        { label: 'Close', kind: 'btn-muted', onClick: hideAlert }
+                    ], 0);
+                } else if (!s.active) {
+                    setBanner(null, null, null);
+                    hideAlert();
+                    lastOwnSosActive = false;
+                }
+            } else if (s.active) {
+                const from = otherUsers.get(s.socketId)?.username || s.socketId;
+                const msg = `${s.type === 'geofence' ? 'GEOFENCE BREACH' : 'SOS'} from ${from}: ${s.reason || 'SOS'} • ${ackText}`;
+                setBanner('sos', msg, [
+                    { label: 'Acknowledge', kind: 'btn-primary', onClick: () => { silencedSos.add(s.socketId); socket.emit('ackSOS', { socketId: s.socketId }); hideAlert(); stopAlarmLoop(); } },
+                    { label: 'Dismiss', kind: 'btn-muted', onClick: () => setBanner(null, null, null) }
+                ]);
+                // Strong alert for manual SOS + auto rules; geofence breach = strong alert for admin only (handled by filter above)
+                const alarmMs = s.type === 'geofence' ? 7000 : (s.type === 'auto' ? 7000 : 10000);
+                const shouldAlarm = !silencedSos.has(s.socketId) && ackCount === 0;
+                showAlert(s.type === 'geofence' ? 'GEOFENCE BREACH' : 'SOS ALERT', msg, [
+                    { label: 'Acknowledge', kind: 'btn-primary', onClick: () => { silencedSos.add(s.socketId); socket.emit('ackSOS', { socketId: s.socketId }); hideAlert(); stopAlarmLoop(); } },
+                    { label: 'Dismiss', kind: 'btn-muted', onClick: hideAlert }
+                ], shouldAlarm ? alarmMs : 0);
+            }
+        });
+
+        socket.on('checkInRequest', () => {
+            showAlert('CHECK-IN REQUIRED', 'Tap “I’m OK” to confirm you are safe. If you don’t, admin will be alerted.', [
+                { label: "I'm OK", kind: 'btn-primary', onClick: () => { imOkBtn.click(); hideAlert(); } },
+                { label: 'Later', kind: 'btn-muted', onClick: hideAlert }
+            ], 5000);
+            setBanner('info', 'Check-in requested. Tap “I’m OK”.', [
+                { label: "I'm OK", kind: 'btn-primary', onClick: () => imOkBtn.click() }
+            ]);
+        });
+
+        socket.on('checkInMissed', (p) => {
+            if (!p || p.socketId === mySocketId) return;
+            setBanner('sos', `Missed check-in: ${p.username || p.socketId}`, [
+                { label: 'Acknowledge SOS', kind: 'btn-primary', onClick: () => socket.emit('ackSOS', { socketId: p.socketId }) }
+            ]);
         });
         
         
@@ -749,16 +1516,23 @@
             if (DEBUG) console.log('Received existing users:', users);
             
             users.forEach(user => {
+                if (user.socketId === mySocketId) {
+                    if (keep48Toggle && user.retention) keep48Toggle.checked = (user.retention.mode === '48h');
+                    return;
+                }
                 if (user.socketId !== mySocketId) {
                     otherUsers.set(user.socketId, user);
-
+                    
                     if (user.latitude && user.longitude) {
                         createOrUpdateUserMarker(user);
                     }
+                    upsertGeofenceCircle(user);
                 }
             });
             
             scheduleOtherUsersListUpdate();
+            refreshAdminTargetOptions();
+            populateAdminControlsFromTarget();
         });
         
         
@@ -768,6 +1542,7 @@
             if (user.socketId !== mySocketId) {
                 otherUsers.set(user.socketId, user);
                 scheduleOtherUsersListUpdate();
+                refreshAdminTargetOptions();
             }
         });
         
@@ -775,15 +1550,21 @@
         socket.on('userUpdate', (user) => {
             if (DEBUG) console.log('User updated:', user);
             
+            if (user.socketId === mySocketId) {
+                if (keep48Toggle && user.retention) keep48Toggle.checked = (user.retention.mode === '48h');
+                return;
+            }
             if (user.socketId !== mySocketId) {
                 otherUsers.set(user.socketId, user);
-
+                
                 if (user.latitude && user.longitude) {
                     createOrUpdateUserMarker(user);
                 }
+                upsertGeofenceCircle(user);
                 
                 scheduleOtherUsersListUpdate();
-
+                refreshAdminTargetOptions();
+                
                 const selectedIndex = selectedUsers.findIndex(u => u.id === user.socketId);
                 if (selectedIndex !== -1) {
 
@@ -791,7 +1572,7 @@
                         latitude: user.latitude,
                         longitude: user.longitude
                     };
-
+                    
                     updateDistanceBetweenSelectedUsers();
                 }
             }
@@ -800,13 +1581,19 @@
         
         socket.on('userDisconnect', (socketId) => {
             if (DEBUG) console.log('User disconnected:', socketId);
-
+            
             otherUsers.delete(socketId);
-
+            
             const marker = otherUserMarkers.get(socketId);
             if (marker) {
                 map.removeLayer(marker);
                 otherUserMarkers.delete(socketId);
+            }
+            
+            const circle = geofenceCircles.get(socketId);
+            if (circle) {
+                map.removeLayer(circle);
+                geofenceCircles.delete(socketId);
             }
 
             const selectedIndex = selectedUsers.findIndex(u => u.id === socketId);
@@ -816,13 +1603,25 @@
             }
             
             scheduleOtherUsersListUpdate();
+            refreshAdminTargetOptions();
         });
 
+        socket.on('userOffline', (user) => {
+            if (!user || user.socketId === mySocketId) return;
+            otherUsers.set(user.socketId, user);
+            if (user.latitude && user.longitude) {
+                createOrUpdateUserMarker(user);
+            }
+            upsertGeofenceCircle(user);
+            scheduleOtherUsersListUpdate();
+            refreshAdminTargetOptions();
+        });
+        
         if (!navigator.geolocation) {
             alert('Geolocation is not supported by your browser');
             trackButton.disabled = true;
         }
-
+        
         navigator.geolocation.getCurrentPosition(
             (position) => {
                 map.setView([position.coords.latitude, position.coords.longitude], 16);
