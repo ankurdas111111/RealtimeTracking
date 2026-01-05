@@ -5,30 +5,27 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Real-time Location Tracker</title>
     
-    <!-- External libraries: Leaflet for maps -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" 
-          integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" 
-          crossorigin=""/>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
     
-    <!-- Custom styling from external file -->
+    
     <link rel="stylesheet" href="/css/style.css">
     
-    <!-- Inline styles for the app -->
+    
     <style>
-        /* Basic layout and reset */
+        
         body {
             margin: 0;
             padding: 0;
             font-family: Arial, sans-serif;
         }
         
-        /* Full-screen map container */
+        
         #map {
             height: 100vh;
             width: 100%;
         }
         
-        /* Info panel on the top-right */
+        
         .info-panel {
             position: absolute;
             top: 10px;
@@ -43,7 +40,7 @@
             overflow-y: auto;
         }
         
-        /* Control panel on the bottom-left */
+        
         .control-panel {
             position: absolute;
             bottom: 20px;
@@ -55,7 +52,7 @@
             box-shadow: 0 0 10px rgba(0,0,0,0.2);
         }
         
-        /* Button styling */
+        
         button {
             padding: 8px 16px;
             background: #4CAF50;
@@ -69,7 +66,7 @@
             background: #45a049;
         }
         
-        /* Username input area */
+        
         .user-name {
             display: flex;
             align-items: center;
@@ -83,14 +80,14 @@
             border-radius: 3px;
         }
         
-        /* User list section */
+        
         .user-list {
             margin-top: 15px;
             border-top: 1px solid #eee;
             padding-top: 10px;
         }
         
-        /* Individual user in the list */
+        
         .user-item {
             padding: 8px;
             border-bottom: 1px solid #eee;
@@ -102,25 +99,25 @@
             background-color: #f5f5f5;
         }
         
-        /* Highlight for selected users */
+        
         .user-item.selected {
             background-color: #e3f2fd;
             border-left: 3px solid #2196F3;
         }
         
-        /* Distance measurement styling */
+        
         .distance-indicator {
             font-weight: bold;
             color: #2196F3;
         }
         
-        /* Message when no users are online */
+        
         .no-users {
             color: #999;
             font-style: italic;
         }
         
-        /* User popup styling */
+        
         .user-popup h4 {
             margin: 5px 0;
         }
@@ -129,7 +126,7 @@
             margin: 3px 0;
         }
         
-        /* Distance display panel */
+        
         .distance-display {
             margin-top: 15px;
             padding: 10px;
@@ -142,7 +139,7 @@
             display: block;
         }
         
-        /* Clear selection button */
+        
         .clear-selection {
             color: #F44336;
             cursor: pointer;
@@ -150,7 +147,7 @@
             font-size: 0.9em;
         }
         
-        /* Tips and hints */
+        
         .tip {
             font-size: 0.85em;
             color: #666;
@@ -160,18 +157,18 @@
     </style>
 </head>
 <body>
-    <!-- Main map container -->
+    
     <div id="map"></div>
     
-    <!-- Information panel -->
+    
     <div class="info-panel">
-        <!-- Username input area -->
+        
         <div class="user-name">
             <input type="text" id="usernameInput" placeholder="Your name">
             <button id="updateNameBtn">Update</button>
         </div>
         
-        <!-- Current user location info -->
+        
         <h3>Your Location</h3>
         <p>Latitude: <span id="latitude">-</span></p>
         <p>Longitude: <span id="longitude">-</span></p>
@@ -179,7 +176,7 @@
         <p>Last Updated: <span id="timestamp">-</span></p>
         <p>Distance Traveled: <span id="distance">0</span> m</p>
         
-        <!-- Distance measurement display -->
+        
         <div class="distance-display" id="distanceDisplay">
             <h4>Distance Between Points</h4>
             <p><span id="user1Name">-</span> to <span id="user2Name">-</span>: 
@@ -187,7 +184,7 @@
             <span class="clear-selection" id="clearSelection">Clear</span></p>
         </div>
         
-        <!-- Other users list -->
+        
         <div class="user-list">
             <h3>Users & Measurement</h3>
             <p>Click on two points to measure distance</p>
@@ -198,81 +195,50 @@
         </div>
     </div>
     
-    <!-- Control buttons -->
+    
     <div class="control-panel">
         <button id="trackButton">Start Tracking</button>
         <button id="resetButton" style="margin-left: 10px; background-color: #f44336;">Reset</button>
     </div>
 
-    <!-- External libraries: Leaflet JS for maps -->
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" 
-            integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" 
-            crossorigin=""></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
             
-    <!-- Socket.io for real-time communication -->
+    
     <script src="/socket.io/socket.io.js"></script>
     
-    <!-- Custom utility functions -->
+    
     <script src="/js/tracking.js"></script>
     
     <script>
-        /**
-         * REAL-TIME LOCATION TRACKER
-         * 
-         * This application allows users to:
-         * 1. Track their location in real-time
-         * 2. See other connected users
-         * 3. Measure distances between any two points
-         * 4. Share location with others in real-time
-         */
-        
-        //============================================================
-        // INITIALIZATION AND SETUP
-        //============================================================
-        
-        // Initialize the map centered at [0,0] with zoom level 2
+        const DEBUG = false;
+
         const map = L.map('map').setView([0, 0], 2);
-        
-        // Add OpenStreetMap tile layer
+
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
         }).addTo(map);
-        
-        //============================================================
-        // STATE VARIABLES
-        //============================================================
-        
-        // User tracking state
-        let marker = null;             // Current user's marker
-        let path = null;               // Path showing user movement
-        let positions = [];            // Array of user's positions
-        let timestamps = [];           // Timestamps for each position
-        let totalDistance = 0;         // Total distance traveled
-        let tracking = false;          // Whether tracking is currently active
-        let watchId = null;            // ID for the geolocation watcher
-        
-        // User information
-        let myUsername = "";           // Current user's name
-        let myLocation = null;         // Current user's location
-        let mySocketId = null;         // Socket ID for this user
-        
-        // Other users tracking
-        const otherUsers = new Map();       // Map of other connected users
-        const otherUserMarkers = new Map(); // Markers for other users
-        
-        // Distance measurement
-        let selectedUsers = [];        // Selected points for distance measurement
-        let distanceLine = null;       // Line showing distance between points
-        let distanceLabel = null;      // Label showing the distance
-        
-        // Connect to the server using Socket.io
+
+        let marker = null;
+        let path = null;
+        let positions = [];
+        let timestamps = [];
+        let totalDistance = 0;
+        let tracking = false;
+        let watchId = null;
+
+        let myUsername = "";
+        let myLocation = null;
+        let mySocketId = null;
+
+        const otherUsers = new Map();
+        const otherUserMarkers = new Map();
+
+        let selectedUsers = [];
+        let distanceLine = null;
+        let distanceLabel = null;
+
         const socket = io();
-        
-        //============================================================
-        // DOM ELEMENTS
-        //============================================================
-        
-        // Get references to DOM elements
+
         const latElement = document.getElementById('latitude');
         const lngElement = document.getElementById('longitude');
         const speedElement = document.getElementById('speed');
@@ -288,14 +254,9 @@
         const user2NameElement = document.getElementById('user2Name');
         const userDistanceElement = document.getElementById('userDistance');
         const clearSelectionButton = document.getElementById('clearSelection');
+
         
-        //============================================================
-        // EVENT LISTENERS
-        //============================================================
         
-        /**
-         * Update username when button is clicked
-         */
         updateNameBtn.addEventListener('click', function() {
             const newUsername = usernameInput.value.trim();
             if (newUsername) {
@@ -304,17 +265,13 @@
             }
         });
         
-        /**
-         * Clear distance measurement selections
-         */
+        
         clearSelectionButton.addEventListener('click', function(e) {
             e.stopPropagation();
             clearSelectedUsers();
         });
         
-        /**
-         * Start or stop tracking when button is clicked
-         */
+        
         trackButton.addEventListener('click', function() {
             if (!tracking) {
                 startTracking();
@@ -327,42 +284,33 @@
             }
         });
         
-        /**
-         * Reset all tracking data and map
-         */
+        
         resetButton.addEventListener('click', function() {
             resetTracking();
         });
         
-        /**
-         * Select points by clicking directly on the map
-         */
+        
         map.on('click', function(e) {
-            // Get coordinates of clicked point
+
             const clickedLat = e.latlng.lat;
             const clickedLng = e.latlng.lng;
-            
-            // Create a name and ID for this point
+
             const posName = `Position (${formatCoordinate(clickedLat)}, ${formatCoordinate(clickedLng)})`;
             const clickId = `click-${Date.now()}`;
-            
-            // Select this position for distance measurement
+
             handleUserSelection(clickId, posName, {
                 latitude: clickedLat,
                 longitude: clickedLng
             });
-            
-            // Add a marker for the clicked position
+
             const isSelected = selectedUsers.some(user => user.id === clickId);
             if (isSelected) {
                 const clickMarker = L.marker([clickedLat, clickedLng], {
-                    icon: createMapIcon('#9C27B0', '') // Purple marker for clicked points
+                    icon: createMapIcon('#9C27B0', '')
                 }).addTo(map);
-                
-                // Store marker reference
+
                 otherUserMarkers.set(clickId, clickMarker);
-                
-                // Show popup with location info
+
                 clickMarker.bindPopup(`
                     <div class="user-popup">
                         <h4>Clicked Position</h4>
@@ -372,24 +320,19 @@
                 `).openPopup();
             }
         });
+
         
-        //============================================================
-        // TRACKING FUNCTIONS
-        //============================================================
         
-        /**
-         * Start tracking the user's location
-         */
         function startTracking() {
             if (navigator.geolocation) {
-                // Watch for position changes
+
                 watchId = navigator.geolocation.watchPosition(
                     handlePosition,
                     handleError,
                     { 
-                        enableHighAccuracy: true, // More accurate positioning
-                        maximumAge: 0,            // Don't use cached positions
-                        timeout: 10000            // Wait up to 10 seconds
+                        enableHighAccuracy: true,
+                        maximumAge: 0,
+                        timeout: 10000
                     }
                 );
             } else {
@@ -397,9 +340,7 @@
             }
         }
         
-        /**
-         * Stop tracking the user's location
-         */
+        
         function stopTracking() {
             if (watchId !== null) {
                 navigator.geolocation.clearWatch(watchId);
@@ -407,19 +348,15 @@
             }
         }
         
-        /**
-         * Reset all tracking data and map
-         */
+        
         function resetTracking() {
-            // Clear stored tracking data
+
             positions = [];
             timestamps = [];
             totalDistance = 0;
-            
-            // Update display
+
             distanceElement.textContent = '0';
-            
-            // Remove user's marker and path
+
             if (marker) {
                 map.removeLayer(marker);
                 marker = null;
@@ -429,64 +366,52 @@
                 map.removeLayer(path);
                 path = null;
             }
-            
-            // Remove all temporary map-click markers
+
             otherUserMarkers.forEach((marker, id) => {
                 if (id.startsWith('click-')) {
                     map.removeLayer(marker);
                     otherUserMarkers.delete(id);
                 }
             });
-            
-            // Reset map view to world view
+
             map.setView([0, 0], 2);
-            
-            // Stop active tracking if running
+
             if (tracking) {
                 stopTracking();
                 trackButton.textContent = 'Start Tracking';
                 tracking = false;
             }
-            
-            // Clear distance measurement
+
             clearSelectedUsers();
         }
         
-        /**
-         * Handle a new position update from geolocation
-         */
+        
         function handlePosition(position) {
-            // Extract location data
+
             const { latitude, longitude } = position.coords;
             const speed = position.coords.speed ? (position.coords.speed * 3.6).toFixed(1) : '0';
             const timestamp = new Date().toLocaleTimeString();
             const currentTime = Date.now();
-            
-            // Store my current location
+
             myLocation = { latitude, longitude };
-            
-            // Update the information panel
+
             latElement.textContent = formatCoordinate(latitude);
             lngElement.textContent = formatCoordinate(longitude);
             speedElement.textContent = speed;
             timestampElement.textContent = timestamp;
-            
-            // Calculate distance traveled since last position
+
             if (positions.length > 0) {
                 const [prevLat, prevLng] = positions[positions.length - 1];
                 const distance = calculateDistance(prevLat, prevLng, latitude, longitude);
                 totalDistance += distance;
                 distanceElement.textContent = Math.round(totalDistance);
             }
-            
-            // Update map with new position
+
             updateMap(latitude, longitude);
-            
-            // Save position history
+
             positions.push([latitude, longitude]);
             timestamps.push(currentTime);
-            
-            // Send location to server for sharing with other users
+
             socket.emit('position', {
                 latitude,
                 longitude,
@@ -494,36 +419,30 @@
                 timestamp: currentTime,
                 formattedTime: timestamp
             });
-            
-            // Update distance measurement if active
+
             updateDistanceBetweenSelectedUsers();
         }
         
-        /**
-         * Handle errors from geolocation API
-         */
+        
         function handleError(error) {
             console.error('Error getting location:', error.message);
-            
-            // Handle different types of errors appropriately
+
             if (error.code === error.PERMISSION_DENIED) {
-                // Alert only for permission issues (requires user action)
+
                 alert('Location access denied. Please enable location permissions in your browser settings.');
             } else if (tracking) {
-                // For other errors during active tracking, show non-intrusive message
+
                 const errorMessage = document.createElement('div');
                 errorMessage.className = 'location-error';
                 errorMessage.textContent = 'Location temporarily unavailable. Retrying...';
                 errorMessage.style.color = '#f44336';
                 errorMessage.style.padding = '5px 0';
                 errorMessage.style.fontSize = '0.9em';
-                
-                // Add error message to the UI
+
                 const locationInfo = latElement.closest('p');
                 if (locationInfo && !document.querySelector('.location-error')) {
                     locationInfo.parentNode.insertBefore(errorMessage, locationInfo);
-                    
-                    // Remove after 5 seconds
+
                     setTimeout(() => {
                         if (errorMessage.parentNode) {
                             errorMessage.parentNode.removeChild(errorMessage);
@@ -533,15 +452,12 @@
             }
         }
         
-        /**
-         * Update the map with new user position
-         */
+        
         function updateMap(lat, lng) {
             const newLatLng = [lat, lng];
-            
-            // Create or update the user's marker
+
             if (!marker) {
-                // Create new marker if it doesn't exist
+
                 marker = L.marker(newLatLng).addTo(map)
                     .bindPopup(`<div class="location-popup">
                         <h4>Your Location</h4>
@@ -549,7 +465,7 @@
                         <p>Lng: ${formatCoordinate(lng)}</p>
                     </div>`);
             } else {
-                // Update existing marker
+
                 marker.setLatLng(newLatLng);
                 marker.getPopup().setContent(`<div class="location-popup">
                     <h4>Your Location</h4>
@@ -557,8 +473,7 @@
                     <p>Lng: ${formatCoordinate(lng)}</p>
                 </div>`);
             }
-            
-            // Update the path showing movement history
+
             if (path) {
                 map.removeLayer(path);
             }
@@ -571,33 +486,25 @@
                     className: 'tracking-path'
                 }).addTo(map);
             }
-            
-            // Center map on current position
+
             map.setView(newLatLng, 16);
         }
+
         
-        //============================================================
-        // DISTANCE MEASUREMENT FUNCTIONS
-        //============================================================
         
-        /**
-         * Update the list of users/points that can be selected for distance measurement
-         */
         function updateOtherUsersList() {
-            // Show message if no users are available
+
             if (otherUsers.size === 0 && !myLocation) {
                 otherUsersElement.innerHTML = '<p class="no-users">No other users online</p>';
                 return;
             }
-            
-            // Clear current list
+
             otherUsersElement.innerHTML = '';
-            
-            // Add myself to the list for selection
+
             if (myLocation) {
                 const myItem = document.createElement('div');
                 myItem.className = 'user-item';
-                // Highlight if selected
+
                 if (selectedUsers.some(user => user.id === 'me')) {
                     myItem.classList.add('selected');
                 }
@@ -606,21 +513,19 @@
                     <strong>${myUsername || 'You'} (You)</strong>
                     <div>Last update: ${timestampElement.textContent}</div>
                 `;
-                
-                // Add click handler to select/deselect
+
                 myItem.addEventListener('click', () => {
                     handleUserSelection('me', myUsername || 'You', myLocation);
                 });
                 
                 otherUsersElement.appendChild(myItem);
             }
-            
-            // Add other users to the list
+
             otherUsers.forEach(user => {
                 if (user.socketId !== mySocketId && user.latitude && user.longitude) {
                     const userItem = document.createElement('div');
                     userItem.className = 'user-item';
-                    // Highlight if selected
+
                     if (selectedUsers.some(selected => selected.id === user.socketId)) {
                         userItem.classList.add('selected');
                     }
@@ -629,8 +534,7 @@
                         <strong>${user.username}</strong>
                         <div>Last update: ${user.formattedTime || formatTimestamp(user.lastUpdate)}</div>
                     `;
-                    
-                    // Add click handler to select/deselect
+
                     userItem.addEventListener('click', () => {
                         handleUserSelection(user.socketId, user.username, {
                             latitude: user.latitude,
@@ -641,31 +545,37 @@
                     otherUsersElement.appendChild(userItem);
                 }
             });
-            
-            // Show appropriate messages based on user count
+
             if (otherUsersElement.children.length === 0) {
                 otherUsersElement.innerHTML = '<p class="no-users">No other users online</p>';
             } else if (otherUsersElement.children.length === 1 && myLocation) {
-                // If only my item was added, show a message
+
                 const waitMessage = document.createElement('p');
                 waitMessage.className = 'no-users';
                 waitMessage.textContent = 'Waiting for other users to connect...';
                 otherUsersElement.appendChild(waitMessage);
             }
         }
+
+        let otherUsersListScheduled = false;
+        function scheduleOtherUsersListUpdate() {
+            if (otherUsersListScheduled) return;
+            otherUsersListScheduled = true;
+            requestAnimationFrame(() => {
+                otherUsersListScheduled = false;
+                updateOtherUsersList();
+            });
+        }
         
-        /**
-         * Handle selection/deselection of a point for distance measurement
-         */
+        
         function handleUserSelection(id, name, location) {
-            // Check if this user is already selected
+
             const index = selectedUsers.findIndex(u => u.id === id);
             
             if (index !== -1) {
-                // Deselect if already selected
+
                 selectedUsers.splice(index, 1);
-                
-                // Remove temporary marker if it's a map click point
+
                 if (id.startsWith('click-')) {
                     const marker = otherUserMarkers.get(id);
                     if (marker) {
@@ -674,9 +584,9 @@
                     }
                 }
             } else {
-                // If we already have 2 selected users, remove the first one
+
                 if (selectedUsers.length >= 2) {
-                    // Remove marker if the oldest selection is a map click point
+
                     const oldestId = selectedUsers[0].id;
                     if (oldestId.startsWith('click-')) {
                         const marker = otherUserMarkers.get(oldestId);
@@ -685,29 +595,24 @@
                             otherUserMarkers.delete(oldestId);
                         }
                     }
-                    
-                    // Remove the oldest selection
+
                     selectedUsers.shift();
                 }
-                
-                // Add the new selection
+
                 selectedUsers.push({
                     id: id,
                     name: name,
                     location: location
                 });
             }
-            
-            // Update UI to reflect changes
-            updateOtherUsersList();
+
+            scheduleOtherUsersListUpdate();
             updateDistanceBetweenSelectedUsers();
         }
         
-        /**
-         * Clear all selected points for distance measurement
-         */
+        
         function clearSelectedUsers() {
-            // Remove any temporary markers
+
             selectedUsers.forEach(user => {
                 if (user.id.startsWith('click-')) {
                     const marker = otherUserMarkers.get(user.id);
@@ -717,11 +622,9 @@
                     }
                 }
             });
-            
-            // Clear selections
+
             selectedUsers = [];
-            
-            // Remove distance visualization
+
             if (distanceLine) {
                 map.removeLayer(distanceLine);
                 distanceLine = null;
@@ -731,19 +634,15 @@
                 map.removeLayer(distanceLabel);
                 distanceLabel = null;
             }
-            
-            // Hide distance display
+
             distanceDisplay.classList.remove('active');
-            
-            // Update UI
-            updateOtherUsersList();
+
+            scheduleOtherUsersListUpdate();
         }
         
-        /**
-         * Update the distance measurement display and visualization
-         */
+        
         function updateDistanceBetweenSelectedUsers() {
-            // Remove old visualizations
+
             if (distanceLine) {
                 map.removeLayer(distanceLine);
                 distanceLine = null;
@@ -753,44 +652,37 @@
                 map.removeLayer(distanceLabel);
                 distanceLabel = null;
             }
-            
-            // Hide distance display by default
+
             distanceDisplay.classList.remove('active');
-            
-            // Need exactly 2 points to measure distance
+
             if (selectedUsers.length !== 2) return;
             
             const user1 = selectedUsers[0];
             const user2 = selectedUsers[1];
-            
-            // Update distance display names
+
             user1NameElement.textContent = user1.name;
             user2NameElement.textContent = user2.name;
-            
-            // Calculate distance between points
+
             const distance = calculateDistance(
                 user1.location.latitude,
                 user1.location.longitude,
                 user2.location.latitude,
                 user2.location.longitude
             );
-            
-            // Show the distance
+
             userDistanceElement.textContent = Math.round(distance) + ' m';
             distanceDisplay.classList.add('active');
-            
-            // Draw line between points
+
             distanceLine = L.polyline([
                 [user1.location.latitude, user1.location.longitude],
                 [user2.location.latitude, user2.location.longitude]
             ], {
-                color: '#FF5722',  // Orange line
+                color: '#FF5722',
                 weight: 3,
                 opacity: 0.7,
-                dashArray: '5, 10' // Dashed line
+                dashArray: '5, 10'
             }).addTo(map);
-            
-            // Add distance label at midpoint
+
             const midpoint = [
                 (user1.location.latitude + user2.location.latitude) / 2,
                 (user1.location.longitude + user2.location.longitude) / 2
@@ -804,42 +696,33 @@
             });
             
             distanceLabel = L.marker(midpoint, { icon: labelIcon }).addTo(map);
-            
-            // Adjust map view to show both points
+
             const bounds = L.latLngBounds(
                 [user1.location.latitude, user1.location.longitude],
                 [user2.location.latitude, user2.location.longitude]
             );
             map.fitBounds(bounds, { padding: [50, 50] });
         }
+
         
-        //============================================================
-        // OTHER USER VISUALIZATION
-        //============================================================
         
-        /**
-         * Create or update a marker for another user
-         */
         function createOrUpdateUserMarker(user) {
             const userLatLng = [user.latitude, user.longitude];
-            
-            // Get existing marker or create new one
+
             let userMarker = otherUserMarkers.get(user.socketId);
             
             if (!userMarker) {
-                // Create new marker with orange icon
+
                 userMarker = L.marker(userLatLng, {
                     icon: createMapIcon('#FF5722', '')
                 }).addTo(map);
-                
-                // Save marker reference
+
                 otherUserMarkers.set(user.socketId, userMarker);
             } else {
-                // Update existing marker position
+
                 userMarker.setLatLng(userLatLng);
             }
-            
-            // Update popup with user info
+
             userMarker.bindPopup(`
                 <div class="user-popup">
                     <h4>${user.username}</h4>
@@ -850,139 +733,112 @@
                 </div>
             `);
         }
+
         
-        //============================================================
-        // SOCKET.IO COMMUNICATION
-        //============================================================
         
-        /**
-         * When connected to the server
-         */
         socket.on('connect', () => {
             mySocketId = socket.id;
-            console.log('Connected to server with ID:', mySocketId);
-            
-            // Generate random username
+            if (DEBUG) console.log('Connected to server with ID:', mySocketId);
+
             myUsername = "User-" + Math.floor(Math.random() * 10000);
             usernameInput.value = myUsername;
         });
         
-        /**
-         * Receive existing users when connecting
-         */
+        
         socket.on('existingUsers', (users) => {
-            console.log('Received existing users:', users);
+            if (DEBUG) console.log('Received existing users:', users);
             
             users.forEach(user => {
                 if (user.socketId !== mySocketId) {
                     otherUsers.set(user.socketId, user);
-                    
-                    // Create marker if user has location
+
                     if (user.latitude && user.longitude) {
                         createOrUpdateUserMarker(user);
                     }
                 }
             });
             
-            updateOtherUsersList();
+            scheduleOtherUsersListUpdate();
         });
         
-        /**
-         * Handle new user connecting
-         */
+        
         socket.on('userConnected', (user) => {
-            console.log('New user connected:', user);
+            if (DEBUG) console.log('New user connected:', user);
             
             if (user.socketId !== mySocketId) {
                 otherUsers.set(user.socketId, user);
-                updateOtherUsersList();
+                scheduleOtherUsersListUpdate();
             }
         });
         
-        /**
-         * Handle updates from other users (location or name changes)
-         */
+        
         socket.on('userUpdate', (user) => {
-            console.log('User updated:', user);
+            if (DEBUG) console.log('User updated:', user);
             
             if (user.socketId !== mySocketId) {
                 otherUsers.set(user.socketId, user);
-                
-                // Update or create marker
+
                 if (user.latitude && user.longitude) {
                     createOrUpdateUserMarker(user);
                 }
                 
-                updateOtherUsersList();
-                
-                // Update distance measurement if this user is selected
+                scheduleOtherUsersListUpdate();
+
                 const selectedIndex = selectedUsers.findIndex(u => u.id === user.socketId);
                 if (selectedIndex !== -1) {
-                    // Update location data
+
                     selectedUsers[selectedIndex].location = {
                         latitude: user.latitude,
                         longitude: user.longitude
                     };
-                    
-                    // Update distance display
+
                     updateDistanceBetweenSelectedUsers();
                 }
             }
         });
         
-        /**
-         * Handle user disconnection
-         */
+        
         socket.on('userDisconnect', (socketId) => {
-            console.log('User disconnected:', socketId);
-            
-            // Remove user from our list
+            if (DEBUG) console.log('User disconnected:', socketId);
+
             otherUsers.delete(socketId);
-            
-            // Remove marker if exists
+
             const marker = otherUserMarkers.get(socketId);
             if (marker) {
                 map.removeLayer(marker);
                 otherUserMarkers.delete(socketId);
             }
-            
-            // Remove from selected users if present
+
             const selectedIndex = selectedUsers.findIndex(u => u.id === socketId);
             if (selectedIndex !== -1) {
                 selectedUsers.splice(selectedIndex, 1);
                 updateDistanceBetweenSelectedUsers();
             }
             
-            updateOtherUsersList();
+            scheduleOtherUsersListUpdate();
         });
-        
-        //============================================================
-        // INITIALIZATION
-        //============================================================
-        
-        // Check if browser supports geolocation
+
         if (!navigator.geolocation) {
             alert('Geolocation is not supported by your browser');
             trackButton.disabled = true;
         }
-        
-        // Try to get initial location
+
         navigator.geolocation.getCurrentPosition(
             (position) => {
                 map.setView([position.coords.latitude, position.coords.longitude], 16);
             },
             (error) => {
-                // Just log the error, don't show an alert for initial location
+
                 console.log('Could not get initial location:', error.message);
-                // Only alert if it's a permissions issue
+
                 if (error.code === error.PERMISSION_DENIED) {
                     alert('Location access denied. Please enable location permissions in your browser settings.');
                 }
             },
             { 
                 enableHighAccuracy: true,
-                timeout: 10000,          // 10 second timeout
-                maximumAge: 30000        // Allow cached positions up to 30 seconds old
+                timeout: 10000,
+                maximumAge: 30000
             }
         );
     </script>
