@@ -13,10 +13,26 @@
     
     <style>
         
+        :root {
+            --bg: #f6f8fb;
+            --text: #0f172a;
+            --muted: #64748b;
+            --border: rgba(15, 23, 42, 0.10);
+            --card: rgba(255, 255, 255, 0.92);
+            --shadow: 0 12px 30px rgba(2, 6, 23, 0.10);
+            --primary: #2563eb;
+            --danger: #ef4444;
+            --success: #16a34a;
+        }
+
         body {
             margin: 0;
             padding: 0;
-            font-family: Arial, sans-serif;
+            font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+            color: var(--text);
+            background: var(--bg);
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
         }
         
         
@@ -51,10 +67,11 @@
             top: var(--ui-top);
             right: 10px;
             z-index: 2000;
-            background: rgba(255, 255, 255, 0.96);
-            padding: 10px;
-            border-radius: 12px;
-            box-shadow: 0 0 10px rgba(0,0,0,0.2);
+            background: var(--card);
+            padding: 12px;
+            border-radius: 14px;
+            border: 1px solid var(--border);
+            box-shadow: var(--shadow);
             width: min(360px, calc(100vw - 20px));
             max-height: calc(100dvh - var(--ui-top) - var(--ui-bottom));
             overflow: auto;
@@ -75,10 +92,11 @@
             bottom: calc(10px + env(safe-area-inset-bottom));
             left: 10px;
             z-index: 2500;
-            background: rgba(255, 255, 255, 0.96);
+            background: var(--card);
             padding: 10px;
-            border-radius: 12px;
-            box-shadow: 0 0 10px rgba(0,0,0,0.2);
+            border-radius: 14px;
+            border: 1px solid var(--border);
+            box-shadow: var(--shadow);
             display: flex;
             gap: 10px;
             align-items: center;
@@ -97,17 +115,30 @@
         /* Only style the legacy (non-.btn) buttons, so we don't override SOS/Alerts/admin buttons */
         .control-panel button,
         #updateNameBtn {
-            padding: 8px 16px;
-            background: #4CAF50;
+            padding: 10px 14px;
+            background: var(--primary);
             color: white;
             border: none;
-            border-radius: 4px;
+            border-radius: 10px;
             cursor: pointer;
+            font-weight: 700;
+            box-shadow: 0 14px 28px rgba(37, 99, 235, 0.18);
+            transition: transform 0.08s ease, filter 0.15s ease;
         }
-
+        
         .control-panel button:hover,
         #updateNameBtn:hover {
-            background: #45a049;
+            filter: brightness(1.05);
+        }
+
+        .control-panel button:active,
+        #updateNameBtn:active {
+            transform: translateY(1px);
+        }
+
+        .control-panel #resetButton {
+            background: var(--danger) !important;
+            box-shadow: 0 10px 22px rgba(239, 68, 68, 0.18);
         }
         
         
@@ -115,42 +146,64 @@
             display: flex;
             align-items: center;
             margin-bottom: 10px;
+            gap: 8px;
         }
         
         .user-name input {
-            padding: 5px;
-            margin-right: 5px;
-            border: 1px solid #ccc;
-            border-radius: 3px;
+            padding: 10px 12px;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            outline: none;
+            background: rgba(255, 255, 255, 0.85);
+            color: var(--text);
+            box-shadow: 0 1px 0 rgba(15, 23, 42, 0.04);
+        }
+
+        .user-name input:focus {
+            border-color: rgba(37, 99, 235, 0.35);
+            box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.12);
         }
         
         
         .user-list {
             margin-top: 15px;
-            border-top: 1px solid #eee;
-            padding-top: 10px;
+            border-top: 1px solid var(--border);
+            padding-top: 12px;
+        }
+
+        h3 {
+            margin: 14px 0 8px 0;
+            font-size: 14px;
+            letter-spacing: 0.3px;
+            text-transform: uppercase;
+            color: rgba(15, 23, 42, 0.75);
+        }
+
+        p {
+            color: rgba(15, 23, 42, 0.75);
         }
         
         
         .user-item {
-            padding: 8px;
-            border-bottom: 1px solid #eee;
+            padding: 10px 10px;
+            border-bottom: 1px solid var(--border);
             cursor: pointer;
             transition: background-color 0.2s;
             display: flex;
             justify-content: space-between;
             gap: 8px;
             align-items: center;
+            border-radius: 12px;
         }
         
         .user-item:hover {
-            background-color: #f5f5f5;
+            background-color: rgba(37, 99, 235, 0.06);
         }
         
         
         .user-item.selected {
-            background-color: #e3f2fd;
-            border-left: 3px solid #2196F3;
+            background-color: rgba(37, 99, 235, 0.10);
+            border-left: 3px solid var(--primary);
         }
         
         .user-item .meta {
@@ -206,12 +259,12 @@
         
         .distance-indicator {
             font-weight: bold;
-            color: #2196F3;
+            color: var(--primary);
         }
         
         
         .no-users {
-            color: #999;
+            color: rgba(100, 116, 139, 0.95);
             font-style: italic;
         }
         
@@ -228,8 +281,9 @@
         .distance-display {
             margin-top: 15px;
             padding: 10px;
-            background-color: #f5f5f5;
-            border-radius: 5px;
+            background-color: rgba(2, 6, 23, 0.04);
+            border: 1px solid var(--border);
+            border-radius: 12px;
             display: none;
         }
         
@@ -283,6 +337,11 @@
     <div class="sos-topbar">
         <button class="btn btn-danger sos-btn-big" id="sosBtn" type="button">SOS</button>
         <button class="btn alerts-btn" id="alertsSettingsBtn" type="button">Alerts</button>
+        <button class="btn btn-muted" id="infoPanelBtn" type="button">Panel</button>
+        <% if (authUser && authUser.role === 'admin') { %>
+            <button class="btn btn-muted" id="adminPanelBtn" type="button">Admin</button>
+        <% } %>
+        <button class="btn btn-muted" id="usersPanelBtn" type="button">Users</button>
     </div>
 
     <% if (!authUser) { %>
@@ -294,7 +353,7 @@
     <div id="map"></div>
     
     
-    <div class="info-panel">
+    <div class="info-panel" id="infoPanel">
         <div style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
             <div class="mini">
                 <% if (authUser && authUser.role === 'admin') { %>
@@ -326,55 +385,62 @@
         </div>
 
         <% if (isAdmin) { %>
-            <div style="display:flex; gap:8px; align-items:center; margin: 8px 0 10px 0; flex-wrap:wrap;">
-                <span class="mini">Apply to:</span>
-                <select id="adminTargetSelect" style="flex:1; min-width: 180px; padding:6px; border:1px solid #ccc; border-radius:6px;"></select>
-            </div>
-            <div style="display:flex; gap:10px; align-items:center; margin-bottom:10px; flex-wrap:wrap;">
-                <label style="display:flex; gap:6px; align-items:center;">
-                    <input type="checkbox" id="autoSosToggle">
-                    Auto-SOS
-                </label>
-                <label class="mini" style="display:flex; gap:6px; align-items:center;">
-                    No-move (min)
-                    <input id="autoNoMoveMin" type="number" min="1" step="1" value="5" style="width:70px; padding:6px; border:1px solid #ccc; border-radius:6px;" />
-                </label>
-                <label class="mini" style="display:flex; gap:6px; align-items:center;">
-                    Hard-stop (min)
-                    <input id="autoHardStopMin" type="number" min="1" step="1" value="2" style="width:70px; padding:6px; border:1px solid #ccc; border-radius:6px;" />
-                </label>
-                <label style="display:flex; gap:6px; align-items:center;">
-                    <input type="checkbox" id="geofenceToggle">
-                    Geofence
-                </label>
-                <input id="geofenceRadius" type="number" min="100" step="100" value="1500" style="width:90px; padding:6px; border:1px solid #ccc; border-radius:6px;" />
-                <span class="mini">m</span>
-            </div>
-            <div style="display:flex; gap:10px; align-items:center; margin-bottom:10px; flex-wrap:wrap;">
-                <label style="display:flex; gap:6px; align-items:center;">
-                    <input type="checkbox" id="checkInToggle">
-                    I’m OK check-in
-                </label>
-                <label class="mini" style="display:flex; gap:6px; align-items:center;">
-                    Interval (min)
-                    <input id="checkInIntervalMin" type="number" min="1" step="1" value="5" style="width:70px; padding:6px; border:1px solid #ccc; border-radius:6px;" />
-                </label>
-                <label class="mini" style="display:flex; gap:6px; align-items:center;">
-                    Overdue after (min)
-                    <input id="checkInOverdueMin" type="number" min="1" step="1" value="7" style="width:80px; padding:6px; border:1px solid #ccc; border-radius:6px;" />
-                </label>
-            </div>
-            <div style="display:flex; gap:10px; align-items:center; margin-bottom:10px; flex-wrap:wrap;">
-                <label class="mini" style="display:flex; gap:6px; align-items:center;">
-                    <input type="checkbox" id="keepForeverToggle">
-                    Keep selected user forever (no purge)
-                </label>
-            </div>
-            <div style="display:flex; gap:8px; align-items:center; margin-bottom:10px;">
-                <button class="btn btn-primary" id="adminApplyBtn" type="button">Apply / Update</button>
-                <span class="mini">
-                    Check-in rule: user must tap “I’m OK” at least every interval; if overdue, admin gets an alert.
-                </span>
+            <div class="panel-section" id="adminPanel">
+                <div class="panel-header">
+                    <div class="panel-title">Admin Panel</div>
+                </div>
+                <div class="panel-body" id="adminPanelBody">
+                    <div style="display:flex; gap:8px; align-items:center; margin: 8px 0 10px 0; flex-wrap:wrap;">
+                        <span class="mini">Apply to:</span>
+                        <select id="adminTargetSelect" style="flex:1; min-width: 180px; padding:6px; border:1px solid #ccc; border-radius:6px;"></select>
+                    </div>
+                    <div style="display:flex; gap:10px; align-items:center; margin-bottom:10px; flex-wrap:wrap;">
+                        <label style="display:flex; gap:6px; align-items:center;">
+                            <input type="checkbox" id="autoSosToggle">
+                            Auto-SOS
+                        </label>
+                        <label class="mini" style="display:flex; gap:6px; align-items:center;">
+                            No-move (min)
+                            <input id="autoNoMoveMin" type="number" min="1" step="1" value="5" style="width:70px; padding:6px; border:1px solid #ccc; border-radius:6px;" />
+                        </label>
+                        <label class="mini" style="display:flex; gap:6px; align-items:center;">
+                            Hard-stop (min)
+                            <input id="autoHardStopMin" type="number" min="1" step="1" value="2" style="width:70px; padding:6px; border:1px solid #ccc; border-radius:6px;" />
+                        </label>
+                        <label style="display:flex; gap:6px; align-items:center;">
+                            <input type="checkbox" id="geofenceToggle">
+                            Geofence
+                        </label>
+                        <input id="geofenceRadius" type="number" min="100" step="100" value="1500" style="width:90px; padding:6px; border:1px solid #ccc; border-radius:6px;" />
+                        <span class="mini">m</span>
+                    </div>
+                    <div style="display:flex; gap:10px; align-items:center; margin-bottom:10px; flex-wrap:wrap;">
+                        <label style="display:flex; gap:6px; align-items:center;">
+                            <input type="checkbox" id="checkInToggle">
+                            I’m OK check-in
+                        </label>
+                        <label class="mini" style="display:flex; gap:6px; align-items:center;">
+                            Interval (min)
+                            <input id="checkInIntervalMin" type="number" min="1" step="1" value="5" style="width:70px; padding:6px; border:1px solid #ccc; border-radius:6px;" />
+                        </label>
+                        <label class="mini" style="display:flex; gap:6px; align-items:center;">
+                            Overdue after (min)
+                            <input id="checkInOverdueMin" type="number" min="1" step="1" value="7" style="width:80px; padding:6px; border:1px solid #ccc; border-radius:6px;" />
+                        </label>
+                    </div>
+                    <div style="display:flex; gap:10px; align-items:center; margin-bottom:10px; flex-wrap:wrap;">
+                        <label class="mini" style="display:flex; gap:6px; align-items:center;">
+                            <input type="checkbox" id="keepForeverToggle">
+                            Keep selected user forever (no purge)
+                        </label>
+                    </div>
+                    <div style="display:flex; gap:8px; align-items:center; margin-bottom:10px;">
+                        <button class="btn btn-primary" id="adminApplyBtn" type="button">Apply / Update</button>
+                        <span class="mini">
+                            Check-in rule: user must tap “I’m OK” at least every interval; if overdue, admin gets an alert.
+                        </span>
+                    </div>
+                </div>
             </div>
         <% } %>
         
@@ -387,6 +453,13 @@
         <p>Distance Traveled: <span id="distance">0</span> m</p>
         
         
+    </div>
+
+    <div class="users-panel" id="usersPanel">
+        <div class="panel-header">
+            <div class="panel-title">Users & Measurement</div>
+        </div>
+        <div class="panel-body" id="usersPanelBody">
         <div class="distance-display" id="distanceDisplay">
             <h4>Distance Between Points</h4>
             <p><span id="user1Name">-</span> to <span id="user2Name">-</span>: 
@@ -394,13 +467,12 @@
             <span class="clear-selection" id="clearSelection">Clear</span></p>
         </div>
         
-        
         <div class="user-list">
-            <h3>Users & Measurement</h3>
             <p>Click on two points to measure distance</p>
-            <p class="tip">Click on the map or select users to measure</p>
+                <p class="tip">Tap a user row to focus on map. Use Select (max 2) to measure.</p>
             <div id="otherUsers">
                 <p class="no-users">No other users online</p>
+                </div>
             </div>
         </div>
     </div>
@@ -489,6 +561,9 @@
         const alertBody = document.getElementById('alertBody');
         const alertActions = document.getElementById('alertActions');
 
+        const AUTH_USERNAME = document.body.dataset.username || '';
+        const IS_ADMIN = (document.body.dataset.role || '') === 'admin';
+
         
         
         if (updateNameBtn) {
@@ -522,6 +597,15 @@
         const enableAlertsBtn = document.getElementById('enableAlertsBtn');
         const skipAlertsBtn = document.getElementById('skipAlertsBtn');
         const alertsSettingsBtn = document.getElementById('alertsSettingsBtn');
+        const infoPanelBtn = document.getElementById('infoPanelBtn');
+        const adminPanelBtn = document.getElementById('adminPanelBtn');
+        const usersPanelBtn = document.getElementById('usersPanelBtn');
+        const infoPanel = document.getElementById('infoPanel');
+        const usersPanel = document.getElementById('usersPanel');
+        const usersPanelBody = document.getElementById('usersPanelBody');
+        const adminPanel = document.getElementById('adminPanel');
+        const adminPanelBody = document.getElementById('adminPanelBody');
+        const adminPanelToggle = document.getElementById('adminPanelToggle'); // may not exist (we use top button now)
 
         let userInteracted = (localStorage.getItem('alertsEnabled') === '1');
         let pendingAlarmMs = 0;
@@ -563,6 +647,76 @@
                 }
             });
         }
+
+        function isSmallScreen() {
+            return window.matchMedia && window.matchMedia('(max-width: 760px)').matches;
+        }
+
+        function setInfoPanelActive(active) {
+            if (!infoPanel) return;
+            infoPanel.classList.toggle('ui-hidden', !active);
+            localStorage.setItem('infoPanelOpen', active ? '1' : '0');
+            // On small screens, opening the main panel hides users (avoid overlap)
+            if (usersPanel && isSmallScreen() && active) usersPanel.classList.add('ui-hidden');
+        }
+
+        function setAdminPanelOpen(open) {
+            if (!adminPanel) return;
+            adminPanel.classList.toggle('collapsed', !open);
+            localStorage.setItem('adminPanelOpen', open ? '1' : '0');
+        }
+
+        function setUsersPanelOpen(open) {
+            if (!usersPanel) return;
+            usersPanel.classList.toggle('ui-hidden', !open);
+            localStorage.setItem('usersPanelOpen', open ? '1' : '0');
+            // On small screens, opening users hides the main panel (avoid overlap)
+            if (infoPanel && isSmallScreen() && open) infoPanel.classList.add('ui-hidden');
+        }
+
+        // initial states
+        const infoOpen = localStorage.getItem('infoPanelOpen');
+        setInfoPanelActive(infoOpen !== '0'); // default open
+
+        const usersOpen = localStorage.getItem('usersPanelOpen');
+        // default: open on desktop, closed on small screens unless user chose otherwise
+        if (usersOpen === null) setUsersPanelOpen(!isSmallScreen());
+        else setUsersPanelOpen(usersOpen === '1');
+
+        if (IS_ADMIN && adminPanel) {
+            const open = localStorage.getItem('adminPanelOpen');
+            setAdminPanelOpen(open !== '0'); // default open
+        }
+
+        if (usersPanelBtn) {
+            usersPanelBtn.addEventListener('click', () => {
+                const open = !(usersPanel && !usersPanel.classList.contains('ui-hidden'));
+                setUsersPanelOpen(open);
+            });
+        }
+
+        if (infoPanelBtn) {
+            infoPanelBtn.addEventListener('click', () => {
+                const isHidden = infoPanel && infoPanel.classList.contains('ui-hidden');
+                setInfoPanelActive(isHidden);
+            });
+        }
+
+        if (adminPanelBtn) {
+            adminPanelBtn.addEventListener('click', () => {
+                const isCollapsed = adminPanel && adminPanel.classList.contains('collapsed');
+                setAdminPanelOpen(!!isCollapsed);
+                // Ensure the main panel is visible when expanding admin controls
+                if (isCollapsed) setInfoPanelActive(true);
+            });
+        }
+
+        window.addEventListener('resize', () => {
+            // On resize, if switching to desktop and users panel was never explicitly chosen,
+            // keep it visible by default. Otherwise respect stored preferences.
+            const usersPref = localStorage.getItem('usersPanelOpen');
+            if (usersPref === null) setUsersPanelOpen(!isSmallScreen());
+        });
         if (skipAlertsBtn) {
             skipAlertsBtn.addEventListener('click', () => {
                 userInteracted = false;
@@ -1040,7 +1194,7 @@
                 formattedTime: timestamp
             });
             
-            updateDistanceBetweenSelectedUsers();
+            updateDistanceBetweenSelectedUsers(false);
             if (socket && socket.connected) pushProfile();
         }
         
@@ -1178,10 +1332,10 @@
                         if (h <= 0) return `Offline • expires in ${m}m`;
                         return `Offline • expires in ${h}h ${m}m`;
                     })();
-
+                    
                     userItem.innerHTML = `
                         <div class="meta">
-                            <strong>${user.username}</strong>
+                        <strong>${user.username}</strong>
                             <div class="mini">${expiresIn}</div>
                             <div class="mini">Last update: ${user.formattedTime || formatTimestamp(user.lastUpdate)}</div>
                         </div>
@@ -1190,6 +1344,7 @@
                                 <input class="select-checkbox" type="checkbox" data-action="select" ${selectedUsers.some(s => s.id === user.socketId) ? 'checked' : ''}>
                                 Select
                             </label>
+                            ${IS_ADMIN ? `<button class="btn btn-danger small-btn" type="button" data-action="delete">Delete</button>` : ``}
                         </div>
                     `;
                     
@@ -1236,7 +1391,32 @@
         // Event delegation for mobile-safe interactions in the user list:
         // - Tap row: focus map + open popup
         // - Toggle checkbox: select/deselect (max 2 handled by handleUserSelection)
+        // - Admin delete button: delete user
+        function handleAdminDeleteFromEventTarget(target) {
+            const btn = target && target.closest ? target.closest('button[data-action="delete"]') : null;
+            if (!btn) return false;
+            const row = btn.closest('.user-item');
+            if (!row) return true;
+            const id = row.dataset.id;
+            const name = row.dataset.name || id;
+            if (!id || id === 'me') return true;
+            if (!IS_ADMIN) return true;
+            if (!confirm(`Delete user "${name}"? This will disconnect them and remove them from the map.`)) return true;
+            socket.emit('adminDeleteUser', { socketId: id });
+            setBanner('info', `Deleted ${name}.`, []);
+            setTimeout(() => setBanner(null, null, null), 1500);
+            return true;
+        }
+
+        otherUsersElement.addEventListener('click', (e) => {
+            if (handleAdminDeleteFromEventTarget(e.target)) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+        });
+
         otherUsersElement.addEventListener('pointerup', (e) => {
+            if (handleAdminDeleteFromEventTarget(e.target)) return;
             const cb = e.target && e.target.matches && e.target.matches('input[data-action="select"]');
             if (cb) return;
             const row = e.target && e.target.closest ? e.target.closest('.user-item') : null;
@@ -1340,7 +1520,8 @@
             }
             
             scheduleOtherUsersListUpdate();
-            updateDistanceBetweenSelectedUsers();
+            const shouldFit = (selectedUsers.length === 2);
+            updateDistanceBetweenSelectedUsers(shouldFit);
         }
         
         
@@ -1374,7 +1555,7 @@
         }
         
         
-        function updateDistanceBetweenSelectedUsers() {
+        function updateDistanceBetweenSelectedUsers(shouldFitMap) {
 
             if (distanceLine) {
                 map.removeLayer(distanceLine);
@@ -1430,11 +1611,14 @@
             
             distanceLabel = L.marker(midpoint, { icon: labelIcon }).addTo(map);
             
+            if (shouldFitMap) {
             const bounds = L.latLngBounds(
                 [user1.location.latitude, user1.location.longitude],
                 [user2.location.latitude, user2.location.longitude]
             );
-            map.fitBounds(bounds, { padding: [50, 50] });
+                // Avoid "shaking" during live updates: fit once on selection (no animation).
+                map.fitBounds(bounds, { padding: [50, 50], animate: false });
+            }
         }
         
         
@@ -1480,12 +1664,9 @@
             userMarker.on('mouseover', () => userMarker.openPopup());
             userMarker.on('mouseout', () => userMarker.closePopup());
         }
-
         
         
-        const AUTH_USERNAME = document.body.dataset.username || '';
-        const IS_ADMIN = (document.body.dataset.role || '') === 'admin';
-
+        
         socket.on('connect', () => {
             mySocketId = socket.id;
             if (DEBUG) console.log('Connected to server with ID:', mySocketId);
@@ -1630,7 +1811,7 @@
                         longitude: user.longitude
                     };
                     
-                    updateDistanceBetweenSelectedUsers();
+                    updateDistanceBetweenSelectedUsers(false);
                 }
             }
         });
@@ -1656,7 +1837,7 @@
             const selectedIndex = selectedUsers.findIndex(u => u.id === socketId);
             if (selectedIndex !== -1) {
                 selectedUsers.splice(selectedIndex, 1);
-                updateDistanceBetweenSelectedUsers();
+                updateDistanceBetweenSelectedUsers(false);
             }
             
             scheduleOtherUsersListUpdate();

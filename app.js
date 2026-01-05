@@ -316,6 +316,39 @@ io.on("connection", (socket) => {
         io.emit("userUpdate", { ...target, online: activeUsers.has(targetId) });
     });
 
+    socket.on("adminDeleteUser", (payload) => {
+        const actor = activeUsers.get(socket.id);
+        if (!actor || actor.role !== "admin" || !payload) return;
+        const targetId = typeof payload.socketId === "string" ? payload.socketId : null;
+        if (!targetId) return;
+
+        // Active user: disconnect and remove.
+        const targetUser = activeUsers.get(targetId);
+        if (targetUser) {
+            // Mark so the disconnect handler does NOT retain as offline.
+            targetUser.forceDelete = true;
+            const cid = targetUser.retention && targetUser.retention.clientId ? targetUser.retention.clientId : targetUser.socketId;
+            if (cid) offlineUsers.delete(cid);
+            try {
+                const s = io.sockets.sockets.get(targetId);
+                if (s) s.disconnect(true);
+            } catch (_) {}
+            // If we couldn't disconnect (older socket.io), still remove from server state.
+            activeUsers.delete(targetId);
+            io.emit("userDisconnect", targetId);
+            return;
+        }
+
+        // Offline user: remove by matching stored user.socketId
+        for (const [cid, entry] of offlineUsers.entries()) {
+            if (entry && entry.user && entry.user.socketId === targetId) {
+                offlineUsers.delete(cid);
+                io.emit("userDisconnect", targetId);
+                break;
+            }
+        }
+    });
+
     socket.on("watchJoin", (payload) => {
         const token = payload && typeof payload.token === "string" ? payload.token : null;
         const entry = token ? watchTokens.get(token) : null;
@@ -338,6 +371,13 @@ io.on("connection", (socket) => {
 
         const mode = user.retention && user.retention.mode ? user.retention.mode : "default";
         const cid = user.retention && user.retention.clientId ? user.retention.clientId : user.socketId;
+
+        // Force delete bypasses retention (used by adminDeleteUser)
+        if (user.forceDelete) {
+            if (cid) offlineUsers.delete(cid);
+            io.emit("userDisconnect", user.socketId);
+            return;
+        }
         // Default retention = 24h, user option = 48h, admin option = forever
         const expiresAt =
             mode === "forever" ? null :
@@ -445,7 +485,6 @@ function runAutoRules(user) {
         return;
     }
 
-    // Geofence breach should alert as soon as geofence is enabled (admin-controlled safety boundary).
     if (user.geofence && user.geofence.enabled && typeof user.latitude === "number" && typeof user.longitude === "number") {
         const cLat = user.geofence.centerLat;
         const cLng = user.geofence.centerLng;
@@ -464,7 +503,6 @@ function runAutoRules(user) {
         }
     }
 
-    // Auto SOS rules (opt-in)
     if (user.autoSos && user.autoSos.enabled) {
         if (user.autoSos.noMoveMinutes && now - (user.lastMoveAt || now) > user.autoSos.noMoveMinutes * 60 * 1000) {
             setSos(user, true, `No movement for ${user.autoSos.noMoveMinutes} min`, null, "auto");
@@ -506,7 +544,6 @@ setInterval(() => {
         const overdueMs = user.checkIn.overdueMinutes * 60 * 1000;
         const since = now - user.checkIn.lastCheckInAt;
 
-        // Ask user to check in (client shows prompt + vibration)
         if (since >= intervalMs) {
             io.to(user.socketId).emit("checkInRequest", { intervalMinutes: user.checkIn.intervalMinutes, overdueMinutes: user.checkIn.overdueMinutes });
         }
