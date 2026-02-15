@@ -45,6 +45,14 @@ function register(socket, safe, userId, role, displayName) {
         if (pos.speed > 0.8) user.lastMoveAt = now;
         if (prevSpeed > 25 && pos.speed < 2) user.hardStopAt = now;
         sos.runAutoRules(user);
+        // Debounced DB save: at most once every 30s per user
+        var lastSave = cache.lastDbSaveAt.get(user.userId) || 0;
+        if (now - lastSave > 30000) {
+            cache.lastDbSaveAt.set(user.userId, now);
+            db.updateUserLocation(user.userId, pos.latitude, pos.longitude, pos.speed, now).catch(function(err) {
+                log.error({ err: err.message }, "Failed to persist user location");
+            });
+        }
         visibility.emitToVisible(user, "userUpdate", { ...emitters.sanitizeUser(user), online: true });
         for (var [token, ent] of cache.liveTokens) {
             if (ent.userId === user.userId) _io.to("live:" + token).emit("liveUpdate", { user: emitters.sanitizeUser(user) });

@@ -106,6 +106,13 @@ async function initDb() {
         // Table may not exist yet, which is fine
     }
     await p.query(SCHEMA_SQL);
+    // Migration: add location columns if they don't exist
+    await p.query(`
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS last_latitude DOUBLE PRECISION;
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS last_longitude DOUBLE PRECISION;
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS last_speed TEXT;
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS last_update BIGINT;
+    `);
 }
 
 /**
@@ -120,7 +127,7 @@ async function loadAll() {
     var shareCodes = new Map();
     var emailIndex = new Map();
     var mobileIndex = new Map();
-    var uRes = await p.query("SELECT id, first_name, last_name, password_hash, role, share_code, email, mobile, created_at FROM users");
+    var uRes = await p.query("SELECT id, first_name, last_name, password_hash, role, share_code, email, mobile, created_at, last_latitude, last_longitude, last_speed, last_update FROM users");
     for (var row of uRes.rows) {
         var uid = row.id;
         usersCache[uid] = {
@@ -131,7 +138,11 @@ async function loadAll() {
             shareCode: row.share_code,
             email: row.email || null,
             mobile: row.mobile || null,
-            createdAt: Number(row.created_at)
+            createdAt: Number(row.created_at),
+            lastLatitude: row.last_latitude != null ? Number(row.last_latitude) : null,
+            lastLongitude: row.last_longitude != null ? Number(row.last_longitude) : null,
+            lastSpeed: row.last_speed || null,
+            lastUpdate: row.last_update != null ? Number(row.last_update) : null
         };
         shareCodes.set(row.share_code, uid);
         if (row.email) emailIndex.set(row.email.toLowerCase(), uid);
@@ -232,6 +243,14 @@ async function findUserByMobile(mobile) {
     return res.rows.length > 0 ? res.rows[0].id : null;
 }
 
+// ── Location persistence ─────────────────────────────────────────────────────
+async function updateUserLocation(userId, lat, lng, speed, timestamp) {
+    await getPool().query(
+        "UPDATE users SET last_latitude=$1, last_longitude=$2, last_speed=$3, last_update=$4 WHERE id=$5",
+        [lat, lng, speed, timestamp, userId]
+    );
+}
+
 // ── Room CRUD ───────────────────────────────────────────────────────────────
 async function createRoom(code, name, createdByUserId, createdAt) {
     var res = await getPool().query(
@@ -327,6 +346,7 @@ module.exports = {
     findUserByContact: findUserByContact,
     findUserByEmail: findUserByEmail,
     findUserByMobile: findUserByMobile,
+    updateUserLocation: updateUserLocation,
     createRoom: createRoom,
     addRoomMember: addRoomMember,
     removeRoomMember: removeRoomMember,

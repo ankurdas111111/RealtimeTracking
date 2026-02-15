@@ -102,6 +102,33 @@ function createSocketServer(server, sessionMiddleware) {
             ...Array.from(cache.activeUsers.values()).map(function(u2) { return { ...emitters.sanitizeUser(u2), online: true }; }),
             ...Array.from(cache.offlineUsers.values()).map(function(e) { return { ...emitters.sanitizeUser(e.user), online: false, offlineExpiresAt: e.expiresAt }; })
         ];
+        // Add stored-position users (contacts/room members not yet reconnected)
+        var seenUserIds = new Set();
+        for (var i = 0; i < allUsers.length; i++) { seenUserIds.add(allUsers[i].userId); }
+        var ucKeys = Object.keys(cache.usersCache);
+        for (var k = 0; k < ucKeys.length; k++) {
+            var uid = ucKeys[k];
+            if (seenUserIds.has(uid)) continue;
+            var uc = cache.usersCache[uid];
+            if (uc.lastLatitude != null && uc.lastLongitude != null) {
+                allUsers.push({
+                    socketId: "stored-" + uid,
+                    userId: uid,
+                    displayName: emitters.getDisplayName(uid),
+                    role: uc.role || "user",
+                    latitude: uc.lastLatitude,
+                    longitude: uc.lastLongitude,
+                    speed: uc.lastSpeed || "0",
+                    lastUpdate: uc.lastUpdate || 0,
+                    formattedTime: "",
+                    batteryPct: null,
+                    deviceType: null,
+                    connectionQuality: null,
+                    sos: { active: false },
+                    online: false
+                });
+            }
+        }
         socket.emit("existingUsers", allUsers.filter(function(u2) { return visibility.canSee(userId, u2.userId); }));
         visibility.emitToVisible(me, "userConnected", { socketId: socket.id, userId: userId, displayName: displayName, role: role });
         if (restoredFromOffline) visibility.emitToVisibleAndSelf(me, "userUpdate", { ...emitters.sanitizeUser(me), online: true });

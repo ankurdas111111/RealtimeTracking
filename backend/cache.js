@@ -14,6 +14,7 @@ var offlineUsers = new Map();
 var visibilityCache = new Map();
 var lastVisibleSets = new Map();
 var lastPositionAt = new Map();
+var lastDbSaveAt = new Map();   // userId → timestamp of last DB position save
 
 module.exports = {
     // Getters (return current reference)
@@ -36,5 +37,6 @@ module.exports = {
     offlineUsers: offlineUsers,
     visibilityCache: visibilityCache,
     lastVisibleSets: lastVisibleSets,
-    lastPositionAt: lastPositionAt
+    lastPositionAt: lastPositionAt,
+    lastDbSaveAt: lastDbSaveAt
 };
