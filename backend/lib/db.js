@@ -4,8 +4,12 @@ var pool = null;
 
 // ── Schema ──────────────────────────────────────────────────────────────────
 var SCHEMA_SQL = `
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+
 CREATE TABLE IF NOT EXISTS users (
-    username      VARCHAR(20) PRIMARY KEY,
+    id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    first_name    VARCHAR(50) NOT NULL,
+    last_name     VARCHAR(50) NOT NULL,
     password_hash TEXT NOT NULL,
     role          VARCHAR(10) NOT NULL DEFAULT 'user',
     share_code    VARCHAR(6) UNIQUE NOT NULL,
@@ -24,30 +28,43 @@ CREATE TABLE IF NOT EXISTS "session" (
 CREATE INDEX IF NOT EXISTS "IDX_session_expire" ON "session" ("expire");
 
 CREATE TABLE IF NOT EXISTS rooms (
-    code       VARCHAR(6) PRIMARY KEY,
+    id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    code       VARCHAR(6) UNIQUE NOT NULL,
     name       VARCHAR(50) NOT NULL,
-    created_by VARCHAR(20) REFERENCES users(username),
+    created_by UUID REFERENCES users(id),
     created_at BIGINT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS room_members (
-    room_code VARCHAR(6) REFERENCES rooms(code) ON DELETE CASCADE,
-    username  VARCHAR(20) REFERENCES users(username) ON DELETE CASCADE,
-    PRIMARY KEY (room_code, username)
+    id      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    room_id UUID REFERENCES rooms(id) ON DELETE CASCADE,
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    UNIQUE(room_id, user_id)
 );
 
 CREATE TABLE IF NOT EXISTS contacts (
-    owner_username   VARCHAR(20) REFERENCES users(username) ON DELETE CASCADE,
-    contact_username VARCHAR(20) REFERENCES users(username) ON DELETE CASCADE,
-    PRIMARY KEY (owner_username, contact_username)
+    id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    owner_id   UUID REFERENCES users(id) ON DELETE CASCADE,
+    contact_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    UNIQUE(owner_id, contact_id)
 );
 
 CREATE TABLE IF NOT EXISTS live_tokens (
-    token      VARCHAR(64) PRIMARY KEY,
-    username   VARCHAR(20) REFERENCES users(username) ON DELETE CASCADE,
+    id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    token      VARCHAR(64) UNIQUE NOT NULL,
+    user_id    UUID REFERENCES users(id) ON DELETE CASCADE,
     expires_at BIGINT,
     created_at BIGINT NOT NULL
 );
+`;
+
+// ── Migration: drop old username-based tables ────────────────────────────────
+var MIGRATION_SQL = `
+DROP TABLE IF EXISTS live_tokens CASCADE;
+DROP TABLE IF EXISTS contacts CASCADE;
+DROP TABLE IF EXISTS room_members CASCADE;
+DROP TABLE IF EXISTS rooms CASCADE;
+DROP TABLE IF EXISTS users CASCADE;
 `;
 
 // ── Pool management ─────────────────────────────────────────────────────────
@@ -76,12 +93,24 @@ function getPool() {
 // ── Initialisation ──────────────────────────────────────────────────────────
 async function initDb() {
     var p = getPool();
+    // Check if the old username-based schema exists and migrate if needed
+    try {
+        var colCheck = await p.query(
+            "SELECT column_name FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'username'"
+        );
+        if (colCheck.rows.length > 0) {
+            // Old schema detected -- drop app tables (not session) and recreate
+            await p.query(MIGRATION_SQL);
+        }
+    } catch (_) {
+        // Table may not exist yet, which is fine
+    }
     await p.query(SCHEMA_SQL);
 }
 
 /**
  * Load all persistent data from PostgreSQL into memory maps.
- * Returns { usersCache, shareCodes, rooms, contacts, liveTokens }.
+ * Returns { usersCache, shareCodes, emailIndex, mobileIndex, rooms, contacts, liveTokens }.
  */
 async function loadAll() {
     var p = getPool();
@@ -89,9 +118,14 @@ async function loadAll() {
     // Users
     var usersCache = {};
     var shareCodes = new Map();
-    var uRes = await p.query("SELECT username, password_hash, role, share_code, email, mobile, created_at FROM users");
+    var emailIndex = new Map();
+    var mobileIndex = new Map();
+    var uRes = await p.query("SELECT id, first_name, last_name, password_hash, role, share_code, email, mobile, created_at FROM users");
     for (var row of uRes.rows) {
-        usersCache[row.username] = {
+        var uid = row.id;
+        usersCache[uid] = {
+            firstName: row.first_name || "",
+            lastName: row.last_name || "",
             passwordHash: row.password_hash,
             role: row.role,
             shareCode: row.share_code,
@@ -99,24 +133,27 @@ async function loadAll() {
             mobile: row.mobile || null,
             createdAt: Number(row.created_at)
         };
-        shareCodes.set(row.share_code, row.username);
+        shareCodes.set(row.share_code, uid);
+        if (row.email) emailIndex.set(row.email.toLowerCase(), uid);
+        if (row.mobile) mobileIndex.set(row.mobile, uid);
     }
 
-    // Rooms + members
+    // Rooms + members (join on rooms.id = room_members.room_id)
     var roomsMap = new Map();
-    var rRes = await p.query("SELECT code, name, created_by, created_at FROM rooms");
+    var rRes = await p.query("SELECT id, code, name, created_by, created_at FROM rooms");
     for (var rr of rRes.rows) {
         roomsMap.set(rr.code, {
+            dbId: rr.id,
             name: rr.name,
             members: new Set(),
             createdBy: rr.created_by,
             createdAt: Number(rr.created_at)
         });
     }
-    var mRes = await p.query("SELECT room_code, username FROM room_members");
+    var mRes = await p.query("SELECT rm.room_id, rm.user_id, r.code FROM room_members rm JOIN rooms r ON r.id = rm.room_id");
     for (var mr of mRes.rows) {
-        var room = roomsMap.get(mr.room_code);
-        if (room) room.members.add(mr.username);
+        var room = roomsMap.get(mr.code);
+        if (room) room.members.add(mr.user_id);
     }
     // Clean up rooms with 0 members (orphaned)
     for (var [code, rm] of roomsMap) {
@@ -125,21 +162,21 @@ async function loadAll() {
 
     // Contacts
     var contactsMap = new Map();
-    var cRes = await p.query("SELECT owner_username, contact_username FROM contacts");
+    var cRes = await p.query("SELECT owner_id, contact_id FROM contacts");
     for (var cr of cRes.rows) {
-        if (!contactsMap.has(cr.owner_username)) contactsMap.set(cr.owner_username, new Set());
-        contactsMap.get(cr.owner_username).add(cr.contact_username);
+        if (!contactsMap.has(cr.owner_id)) contactsMap.set(cr.owner_id, new Set());
+        contactsMap.get(cr.owner_id).add(cr.contact_id);
     }
 
     // Live tokens (filter out expired)
     var liveTokensMap = new Map();
     var now = Date.now();
-    var lRes = await p.query("SELECT token, username, expires_at, created_at FROM live_tokens");
+    var lRes = await p.query("SELECT token, user_id, expires_at, created_at FROM live_tokens");
     for (var lr of lRes.rows) {
         var expiresAt = lr.expires_at ? Number(lr.expires_at) : null;
         if (expiresAt && expiresAt <= now) continue; // skip expired
         liveTokensMap.set(lr.token, {
-            username: lr.username,
+            userId: lr.user_id,
             expiresAt: expiresAt,
             createdAt: Number(lr.created_at)
         });
@@ -150,6 +187,8 @@ async function loadAll() {
     return {
         usersCache: usersCache,
         shareCodes: shareCodes,
+        emailIndex: emailIndex,
+        mobileIndex: mobileIndex,
         rooms: roomsMap,
         contacts: contactsMap,
         liveTokens: liveTokensMap
@@ -157,87 +196,89 @@ async function loadAll() {
 }
 
 // ── User CRUD ───────────────────────────────────────────────────────────────
-async function createUser(username, passwordHash, role, shareCode, createdAt, email, mobile) {
-    await getPool().query(
-        "INSERT INTO users (username, password_hash, role, share_code, email, mobile, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7)",
-        [username, passwordHash, role, shareCode, email || null, mobile || null, createdAt]
+async function createUser(firstName, lastName, passwordHash, role, shareCode, createdAt, email, mobile) {
+    var res = await getPool().query(
+        "INSERT INTO users (first_name, last_name, password_hash, role, share_code, email, mobile, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id",
+        [firstName, lastName, passwordHash, role, shareCode, email || null, mobile || null, createdAt]
     );
+    return res.rows[0].id; // return the generated UUID
 }
 
-async function updateUserRole(username, newRole) {
-    await getPool().query("UPDATE users SET role = $1 WHERE username = $2", [newRole, username]);
+async function updateUserRole(userId, newRole) {
+    await getPool().query("UPDATE users SET role = $1 WHERE id = $2", [newRole, userId]);
 }
 
 async function findUserByContact(value) {
     var res = await getPool().query(
-        "SELECT username FROM users WHERE email = $1 OR mobile = $1 LIMIT 1",
+        "SELECT id FROM users WHERE email = $1 OR mobile = $1 LIMIT 1",
         [value]
     );
-    return res.rows.length > 0 ? res.rows[0].username : null;
+    return res.rows.length > 0 ? res.rows[0].id : null;
 }
 
 async function findUserByEmail(email) {
     var res = await getPool().query(
-        "SELECT username FROM users WHERE email = $1 LIMIT 1",
+        "SELECT id FROM users WHERE email = $1 LIMIT 1",
         [email]
     );
-    return res.rows.length > 0 ? res.rows[0].username : null;
+    return res.rows.length > 0 ? res.rows[0].id : null;
 }
 
 async function findUserByMobile(mobile) {
     var res = await getPool().query(
-        "SELECT username FROM users WHERE mobile = $1 LIMIT 1",
+        "SELECT id FROM users WHERE mobile = $1 LIMIT 1",
         [mobile]
     );
-    return res.rows.length > 0 ? res.rows[0].username : null;
+    return res.rows.length > 0 ? res.rows[0].id : null;
 }
 
 // ── Room CRUD ───────────────────────────────────────────────────────────────
-async function createRoom(code, name, createdBy, createdAt) {
+async function createRoom(code, name, createdByUserId, createdAt) {
+    var res = await getPool().query(
+        "INSERT INTO rooms (code, name, created_by, created_at) VALUES ($1, $2, $3, $4) RETURNING id",
+        [code, name, createdByUserId, createdAt]
+    );
+    return res.rows[0].id; // return the generated room UUID
+}
+
+async function addRoomMember(roomId, userId) {
     await getPool().query(
-        "INSERT INTO rooms (code, name, created_by, created_at) VALUES ($1, $2, $3, $4)",
-        [code, name, createdBy, createdAt]
+        "INSERT INTO room_members (room_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING",
+        [roomId, userId]
     );
 }
 
-async function addRoomMember(roomCode, username) {
+async function removeRoomMember(roomId, userId) {
     await getPool().query(
-        "INSERT INTO room_members (room_code, username) VALUES ($1, $2) ON CONFLICT DO NOTHING",
-        [roomCode, username]
+        "DELETE FROM room_members WHERE room_id = $1 AND user_id = $2",
+        [roomId, userId]
     );
 }
 
-async function removeRoomMember(roomCode, username) {
-    await getPool().query(
-        "DELETE FROM room_members WHERE room_code = $1 AND username = $2",
-        [roomCode, username]
-    );
-}
-
-async function deleteRoom(code) {
-    await getPool().query("DELETE FROM rooms WHERE code = $1", [code]);
+async function deleteRoom(roomId) {
+    await getPool().query("DELETE FROM rooms WHERE id = $1", [roomId]);
 }
 
 // ── Contact CRUD ────────────────────────────────────────────────────────────
-async function addContact(ownerUsername, contactUsername) {
+async function addContact(ownerId, contactId) {
     await getPool().query(
-        "INSERT INTO contacts (owner_username, contact_username) VALUES ($1, $2) ON CONFLICT DO NOTHING",
-        [ownerUsername, contactUsername]
+        "INSERT INTO contacts (owner_id, contact_id) VALUES ($1, $2) ON CONFLICT DO NOTHING",
+        [ownerId, contactId]
     );
 }
 
-async function removeContact(ownerUsername, contactUsername) {
+async function removeContact(ownerId, contactId) {
     await getPool().query(
-        "DELETE FROM contacts WHERE owner_username = $1 AND contact_username = $2",
-        [ownerUsername, contactUsername]
+        "DELETE FROM contacts WHERE owner_id = $1 AND contact_id = $2",
+        [ownerId, contactId]
     );
 }
 
 // ── Live Token CRUD ─────────────────────────────────────────────────────────
-async function createLiveToken(token, username, expiresAt, createdAt) {
+async function createLiveToken(token, userId, expiresAt, createdAt) {
     await getPool().query(
-        "INSERT INTO live_tokens (token, username, expires_at, created_at) VALUES ($1, $2, $3, $4)",
-        [token, username, expiresAt, createdAt]
+        "INSERT INTO live_tokens (token, user_id, expires_at, created_at) VALUES ($1, $2, $3, $4)",
+        [token, userId, expiresAt, createdAt]
     );
 }
 
@@ -256,7 +297,7 @@ async function deleteExpiredLiveTokens() {
 async function deleteEmptyOldRooms(maxAgeMs) {
     // Delete rooms that have 0 members and are older than maxAgeMs
     await getPool().query(
-        "DELETE FROM rooms WHERE created_at < $1 AND code NOT IN (SELECT DISTINCT room_code FROM room_members)",
+        "DELETE FROM rooms WHERE created_at < $1 AND id NOT IN (SELECT DISTINCT room_id FROM room_members)",
         [Date.now() - maxAgeMs]
     );
 }

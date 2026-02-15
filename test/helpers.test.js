@@ -1,4 +1,4 @@
-var helpers = require("../lib/helpers");
+var helpers = require("../backend/lib/helpers");
 
 describe("sanitizeString", function() {
     it("returns empty string for non-string input", function() {

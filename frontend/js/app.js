@@ -8,10 +8,41 @@ function escHtml(str) {
     return d.innerHTML;
 }
 
+// ── Theme ──────────────────────────────────────────────────────────────────
+(function initTheme() {
+    var saved = localStorage.getItem('theme');
+    if (saved) {
+        document.documentElement.setAttribute('data-theme', saved);
+    } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        document.documentElement.setAttribute('data-theme', 'dark');
+    }
+})();
+
+function isDarkMode() {
+    return document.documentElement.getAttribute('data-theme') === 'dark';
+}
+
+var LIGHT_TILES = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+var DARK_TILES = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+var TILE_ATTR = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
+
 var map = L.map('map').setView([0, 0], 2);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-}).addTo(map);
+var tileLayer = L.tileLayer(isDarkMode() ? DARK_TILES : LIGHT_TILES, { attribution: TILE_ATTR }).addTo(map);
+
+function setMapTiles(dark) {
+    tileLayer.setUrl(dark ? DARK_TILES : LIGHT_TILES);
+}
+
+var themeToggleBtn = document.getElementById('themeToggleBtn');
+if (themeToggleBtn) {
+    themeToggleBtn.addEventListener('click', function() {
+        var current = document.documentElement.getAttribute('data-theme');
+        var next = current === 'dark' ? 'light' : 'dark';
+        document.documentElement.setAttribute('data-theme', next);
+        localStorage.setItem('theme', next);
+        setMapTiles(next === 'dark');
+    });
+}
 
 var marker = null;
 var path = null;
@@ -21,7 +52,8 @@ var totalDistance = 0;
 var tracking = false;
 var watchId = null;
 
-var myUsername = '';
+var myDisplayName = '';
+var myUserId = '';
 var myLocation = null;
 var mySocketId = null;
 
@@ -73,7 +105,8 @@ var alertBody = document.getElementById('alertBody');
 var alertActions = document.getElementById('alertActions');
 var loadingOverlay = document.getElementById('loadingOverlay');
 
-var AUTH_USERNAME = document.body.dataset.username || '';
+var AUTH_DISPLAY_NAME = document.body.dataset.displayName || '';
+var AUTH_USER_ID = document.body.dataset.userId || '';
 var IS_ADMIN = (document.body.dataset.role || '') === 'admin';
 
 function setBanner(type, text, actions) {
@@ -134,11 +167,24 @@ if (enableAlertsBtn) {
 
 function isSmallScreen() { return window.matchMedia && window.matchMedia('(max-width: 760px)').matches; }
 
+function closeAllPanelsExcept(keep) {
+    var sharingPanelEl = document.getElementById('sharingPanel');
+    if (keep !== 'info' && infoPanel) { infoPanel.classList.add('ui-hidden'); localStorage.setItem('infoPanelOpen', '0'); updateNavToggle('infoPanelBtn', false); }
+    if (keep !== 'users' && usersPanel) { usersPanel.classList.add('ui-hidden'); localStorage.setItem('usersPanelOpen', '0'); updateNavToggle('usersPanelBtn', false); }
+    if (keep !== 'sharing' && sharingPanelEl) { sharingPanelEl.classList.add('ui-hidden'); localStorage.setItem('sharingPanelOpen', '0'); updateNavToggle('sharePanelBtn', false); }
+}
+
+function updateNavToggle(btnId, active) {
+    var btn = document.getElementById(btnId);
+    if (btn) btn.classList.toggle('active', active);
+}
+
 function setInfoPanelActive(active) {
     if (!infoPanel) return;
+    if (active) closeAllPanelsExcept('info');
     infoPanel.classList.toggle('ui-hidden', !active);
     localStorage.setItem('infoPanelOpen', active ? '1' : '0');
-    if (usersPanel && isSmallScreen() && active) usersPanel.classList.add('ui-hidden');
+    updateNavToggle('infoPanelBtn', active);
 }
 
 function setAdminPanelOpen(open) {
@@ -149,16 +195,25 @@ function setAdminPanelOpen(open) {
 
 function setUsersPanelOpen(open) {
     if (!usersPanel) return;
+    if (open) closeAllPanelsExcept('users');
     usersPanel.classList.toggle('ui-hidden', !open);
     localStorage.setItem('usersPanelOpen', open ? '1' : '0');
-    if (infoPanel && isSmallScreen() && open) infoPanel.classList.add('ui-hidden');
+    updateNavToggle('usersPanelBtn', open);
 }
 
-var infoOpen = localStorage.getItem('infoPanelOpen');
-setInfoPanelActive(infoOpen !== '0');
-var usersOpen = localStorage.getItem('usersPanelOpen');
-if (usersOpen === null) setUsersPanelOpen(!isSmallScreen());
-else setUsersPanelOpen(usersOpen === '1');
+// On load: restore panel state but ensure only one is visible
+(function initPanels() {
+    var infoOpen = localStorage.getItem('infoPanelOpen');
+    var usersOpen = localStorage.getItem('usersPanelOpen');
+    var sharingOpen = localStorage.getItem('sharingPanelOpen');
+    // Default: info panel open on first visit
+    if (infoOpen === null && usersOpen === null && sharingOpen === null) {
+        infoOpen = '1';
+    }
+    // Set panels directly without triggering closeAllPanelsExcept
+    if (infoPanel) { infoPanel.classList.toggle('ui-hidden', infoOpen !== '1'); updateNavToggle('infoPanelBtn', infoOpen === '1'); }
+    if (usersPanel) { usersPanel.classList.toggle('ui-hidden', usersOpen !== '1'); updateNavToggle('usersPanelBtn', usersOpen === '1'); }
+})();
 
 if (IS_ADMIN && adminPanel) {
     var admOpen = localStorage.getItem('adminPanelOpen');
@@ -184,6 +239,19 @@ if (adminPanelBtn) {
         if (isCollapsed) setInfoPanelActive(true);
     });
 }
+
+// Close buttons inside panels
+document.querySelectorAll('.panel-close').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+        var which = btn.dataset.close;
+        if (which === 'info') setInfoPanelActive(false);
+        else if (which === 'users') setUsersPanelOpen(false);
+        else if (which === 'sharing') {
+            var sp = document.getElementById('sharingPanel');
+            if (sp) { sp.classList.add('ui-hidden'); localStorage.setItem('sharingPanelOpen', '0'); updateNavToggle('sharePanelBtn', false); }
+        }
+    });
+});
 
 window.addEventListener('resize', function() {
     var usersPref = localStorage.getItem('usersPanelOpen');
@@ -287,7 +355,7 @@ function pushProfileNow() {
 }
 
 function getTargetUserById(id) {
-    if (id === 'me') return { socketId: mySocketId, username: myUsername, latitude: myLocation && myLocation.latitude, longitude: myLocation && myLocation.longitude };
+    if (id === 'me') return { socketId: mySocketId, userId: myUserId, displayName: myDisplayName, latitude: myLocation && myLocation.latitude, longitude: myLocation && myLocation.longitude };
     return otherUsers.get(id) || null;
 }
 
@@ -365,11 +433,11 @@ function refreshAdminTargetOptionsNow() {
     lastAdminOptionsKey = key;
     adminTargetSelect.innerHTML = '';
     var optMe = document.createElement('option');
-    optMe.value = 'me'; optMe.textContent = (myUsername || 'Me') + ' (me)';
+    optMe.value = 'me'; optMe.textContent = (myDisplayName || 'Me') + ' (me)';
     adminTargetSelect.appendChild(optMe);
     otherUsers.forEach(function(u) {
         var o = document.createElement('option');
-        o.value = u.socketId; o.textContent = u.username || u.socketId;
+        o.value = u.socketId; o.textContent = u.displayName || u.socketId;
         adminTargetSelect.appendChild(o);
     });
     var exists = Array.from(adminTargetSelect.options).some(function(o) { return o.value === adminTargetId; });
@@ -437,8 +505,8 @@ function upsertGeofenceCircle(user) {
 clearSelectionButton.addEventListener('click', function(e) { e.stopPropagation(); clearSelectedUsers(); });
 
 trackButton.addEventListener('click', function() {
-    if (!tracking) { startTracking(); this.textContent = 'Stop Tracking'; tracking = true; }
-    else { stopTracking(); this.textContent = 'Start Tracking'; tracking = false; }
+    if (!tracking) { startTracking(); trackButton.classList.add('tracking'); trackButton.title = 'Stop Tracking'; tracking = true; }
+    else { stopTracking(); trackButton.classList.remove('tracking'); trackButton.title = 'Start Tracking'; tracking = false; }
 });
 
 resetButton.addEventListener('click', function() { resetTracking(); });
@@ -479,7 +547,7 @@ function resetTracking() {
     if (path) { map.removeLayer(path); path = null; }
     otherUserMarkers.forEach(function(m, id) { if (id.startsWith('click-')) { map.removeLayer(m); otherUserMarkers.delete(id); } });
     map.setView([0, 0], 2);
-    if (tracking) { stopTracking(); trackButton.textContent = 'Start Tracking'; tracking = false; }
+    if (tracking) { stopTracking(); trackButton.classList.remove('tracking'); trackButton.title = 'Start Tracking'; tracking = false; }
     clearSelectedUsers();
 }
 
@@ -546,16 +614,16 @@ function updateOtherUsersList() {
     otherUsersElement.innerHTML = '';
     if (myLocation) {
         var myItem = document.createElement('div');
-        myItem.className = 'user-item'; myItem.dataset.id = 'me'; myItem.dataset.name = myUsername || 'You';
+        myItem.className = 'user-item'; myItem.dataset.id = 'me'; myItem.dataset.name = myDisplayName || 'You';
         myItem.dataset.lat = String(myLocation.latitude); myItem.dataset.lng = String(myLocation.longitude);
         if (selectedUsers.some(function(u) { return u.id === 'me'; })) myItem.classList.add('selected');
-        myItem.innerHTML = '<div class="meta"><strong>' + escHtml(myUsername || 'You') + ' (You)</strong><div class="mini">Last update: ' + escHtml(timestampElement.textContent) + '</div></div><div class="actions"><label class="mini" style="display:flex; align-items:center; gap:6px;"><input class="select-checkbox" type="checkbox" data-action="select" ' + (selectedUsers.some(function(u) { return u.id === 'me'; }) ? 'checked' : '') + '>Select</label></div>';
+        myItem.innerHTML = '<div class="meta"><strong>' + escHtml(myDisplayName || 'You') + ' (You)</strong><div class="mini">Last update: ' + escHtml(timestampElement.textContent) + '</div></div><div class="actions"><label class="mini" style="display:flex; align-items:center; gap:6px;"><input class="select-checkbox" type="checkbox" data-action="select" ' + (selectedUsers.some(function(u) { return u.id === 'me'; }) ? 'checked' : '') + '>Select</label></div>';
         otherUsersElement.appendChild(myItem);
     }
     otherUsers.forEach(function(user) {
         if (user.socketId !== mySocketId && user.latitude && user.longitude) {
             var userItem = document.createElement('div');
-            userItem.className = 'user-item'; userItem.dataset.id = user.socketId; userItem.dataset.name = user.username || user.socketId;
+            userItem.className = 'user-item'; userItem.dataset.id = user.socketId; userItem.dataset.name = user.displayName || user.socketId;
             userItem.dataset.lat = String(user.latitude); userItem.dataset.lng = String(user.longitude);
             if (selectedUsers.some(function(s) { return s.id === user.socketId; })) userItem.classList.add('selected');
             var isOffline = (user.online === false);
@@ -568,7 +636,7 @@ function updateOtherUsersList() {
                 if (h <= 0) return 'Offline &bull; expires in ' + m + 'm';
                 return 'Offline &bull; expires in ' + h + 'h ' + m + 'm';
             })();
-            userItem.innerHTML = '<div class="meta"><strong>' + escHtml(user.username) + '</strong><div class="mini">' + expiresIn + '</div><div class="mini">Last update: ' + escHtml(user.formattedTime || formatTimestamp(user.lastUpdate)) + '</div></div><div class="actions"><label class="mini" style="display:flex; align-items:center; gap:6px;"><input class="select-checkbox" type="checkbox" data-action="select" ' + (selectedUsers.some(function(s) { return s.id === user.socketId; }) ? 'checked' : '') + '>Select</label>' + (IS_ADMIN ? '<button class="btn btn-danger small-btn" type="button" data-action="delete" aria-label="Delete user ' + escHtml(user.username) + '">Delete</button>' : '') + '</div>';
+            userItem.innerHTML = '<div class="meta"><strong>' + escHtml(user.displayName) + '</strong><div class="mini">' + expiresIn + '</div><div class="mini">Last update: ' + escHtml(user.formattedTime || formatTimestamp(user.lastUpdate)) + '</div></div><div class="actions"><label class="mini" style="display:flex; align-items:center; gap:6px;"><input class="select-checkbox" type="checkbox" data-action="select" ' + (selectedUsers.some(function(s) { return s.id === user.socketId; }) ? 'checked' : '') + '>Select</label>' + (IS_ADMIN ? '<button class="btn btn-danger small-btn" type="button" data-action="delete" aria-label="Delete user ' + escHtml(user.displayName) + '">Delete</button>' : '') + '</div>';
             otherUsersElement.appendChild(userItem);
         }
     });
@@ -712,7 +780,7 @@ function createOrUpdateUserMarker(user) {
     } else {
         userMarker.setLatLng(userLatLng); userMarker.setIcon(createMapIcon(markerColor, markerText, { pulse: sosActive }));
     }
-    userMarker.bindPopup('<div class="user-popup"><h4>' + escHtml(user.username) + '</h4><p>Status: ' + (isOffline ? 'Offline' : 'Online') + '</p><p>Lat: ' + formatCoordinate(user.latitude) + '</p><p>Lng: ' + formatCoordinate(user.longitude) + '</p><p>Speed: ' + escHtml(String(user.speed || '0')) + ' km/h</p><p>Updated: ' + escHtml(user.formattedTime || formatTimestamp(user.lastUpdate)) + '</p><p>Battery: ' + (typeof user.batteryPct === 'number' ? user.batteryPct + '%' : '-') + '</p><p>Device: ' + escHtml(user.deviceType || '-') + '</p><p>Connection: ' + escHtml(user.connectionQuality || '-') + '</p><p>Last seen: ' + (user.lastUpdate ? formatTimestamp(user.lastUpdate) : '-') + '</p>' + (user.sos && user.sos.active ? '<p style="color:#F44336; font-weight:700;">SOS: ' + escHtml(user.sos.reason || 'SOS') + '</p>' : '') + '</div>');
+    userMarker.bindPopup('<div class="user-popup"><h4>' + escHtml(user.displayName) + '</h4><p>Status: ' + (isOffline ? 'Offline' : 'Online') + '</p><p>Lat: ' + formatCoordinate(user.latitude) + '</p><p>Lng: ' + formatCoordinate(user.longitude) + '</p><p>Speed: ' + escHtml(String(user.speed || '0')) + ' km/h</p><p>Updated: ' + escHtml(user.formattedTime || formatTimestamp(user.lastUpdate)) + '</p><p>Battery: ' + (typeof user.batteryPct === 'number' ? user.batteryPct + '%' : '-') + '</p><p>Device: ' + escHtml(user.deviceType || '-') + '</p><p>Connection: ' + escHtml(user.connectionQuality || '-') + '</p><p>Last seen: ' + (user.lastUpdate ? formatTimestamp(user.lastUpdate) : '-') + '</p>' + (user.sos && user.sos.active ? '<p style="color:#F44336; font-weight:700;">SOS: ' + escHtml(user.sos.reason || 'SOS') + '</p>' : '') + '</div>');
     userMarker.on('mouseover', function() { userMarker.openPopup(); });
     userMarker.on('mouseout', function() { userMarker.closePopup(); });
 }
@@ -722,7 +790,8 @@ function createOrUpdateUserMarker(user) {
 socket.on('connect', function() {
     mySocketId = socket.id;
     if (DEBUG) console.log('Connected to server with ID:', mySocketId);
-    myUsername = AUTH_USERNAME || ('User-' + Math.floor(Math.random() * 10000));
+    myDisplayName = AUTH_DISPLAY_NAME || ('User-' + Math.floor(Math.random() * 10000));
+    myUserId = AUTH_USER_ID || '';
     scheduleOtherUsersListUpdate();
     pushProfileNow();
     lastProfilePush = Date.now();
@@ -762,7 +831,7 @@ socket.on('sosUpdate', function(s) {
             setBanner(null, null, null); hideAlert(); lastOwnSosActive = false;
         }
     } else if (s.active) {
-        var from = (otherUsers.get(s.socketId) || {}).username || s.socketId;
+        var from = (otherUsers.get(s.socketId) || {}).displayName || s.socketId;
         var msg = (s.type === 'geofence' ? 'GEOFENCE BREACH' : 'SOS') + ' from ' + from + ': ' + (s.reason || 'SOS') + ' \u2022 ' + ackText;
         setBanner('sos', msg, [
             { label: 'Acknowledge', kind: 'btn-primary', onClick: function() { silencedSos.add(s.socketId); socket.emit('ackSOS', { socketId: s.socketId }); hideAlert(); stopAlarmLoop(); } },
@@ -796,7 +865,7 @@ socket.on('checkInUpdate', function(data) {
 
 socket.on('checkInMissed', function(p) {
     if (!p || p.socketId === mySocketId) return;
-    setBanner('sos', 'Missed check-in: ' + (p.username || p.socketId), [
+    setBanner('sos', 'Missed check-in: ' + (p.displayName || p.socketId), [
         { label: 'Acknowledge SOS', kind: 'btn-primary', onClick: function() { socket.emit('ackSOS', { socketId: p.socketId }); } }
     ]);
 });
@@ -885,12 +954,10 @@ navigator.geolocation.getCurrentPosition(
     function isSmall() { return window.innerWidth < 768; }
     function setSharingOpen(open) {
         if (!sharingPanel) return;
+        if (open && typeof closeAllPanelsExcept === 'function') closeAllPanelsExcept('sharing');
         sharingPanel.classList.toggle('ui-hidden', !open);
         localStorage.setItem('sharingPanelOpen', open ? '1' : '0');
-        if (isSmall() && open) {
-            var ip = document.getElementById('infoPanel'); var up = document.getElementById('usersPanel');
-            if (ip) ip.classList.add('ui-hidden'); if (up) up.classList.add('ui-hidden');
-        }
+        if (typeof updateNavToggle === 'function') updateNavToggle('sharePanelBtn', open);
     }
     if (sharePanelBtn) sharePanelBtn.addEventListener('click', function() { var isHidden = sharingPanel && sharingPanel.classList.contains('ui-hidden'); setSharingOpen(isHidden); });
     var sharingOpen = localStorage.getItem('sharingPanelOpen');
@@ -920,7 +987,8 @@ navigator.geolocation.getCurrentPosition(
         if (!roomsList) return;
         if (myRoomsData.length === 0) { roomsList.innerHTML = '<p class="mini">No rooms yet</p>'; } else {
             roomsList.innerHTML = myRoomsData.map(function(r) {
-                return '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid rgba(0,0,0,0.06);"><div><strong>' + esc(r.name) + '</strong> <span class="mini">(' + esc(r.code) + ') &middot; ' + r.members.length + ' members</span></div><button class="btn btn-danger small-btn leave-room-btn" data-code="' + esc(r.code) + '" style="font-size:11px;padding:4px 8px;" aria-label="Leave room ' + esc(r.name) + '">Leave</button></div>';
+                var memberNames = (r.members || []).map(function(m) { return typeof m === 'object' ? m.displayName : m; });
+                return '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid rgba(0,0,0,0.06);"><div><strong>' + esc(r.name) + '</strong> <span class="mini">(' + esc(r.code) + ') &middot; ' + memberNames.length + ' members</span></div><button class="btn btn-danger small-btn leave-room-btn" data-code="' + esc(r.code) + '" style="font-size:11px;padding:4px 8px;" aria-label="Leave room ' + esc(r.name) + '">Leave</button></div>';
             }).join('');
             roomsList.querySelectorAll('.leave-room-btn').forEach(function(btn) { btn.addEventListener('click', function() { socket.emit('leaveRoom', { code: btn.dataset.code }); }); });
         }
@@ -932,9 +1000,9 @@ navigator.geolocation.getCurrentPosition(
         if (myContactsData.length === 0) { contactsList.innerHTML = '<p class="mini">No contacts yet</p>'; } else {
             contactsList.innerHTML = myContactsData.map(function(c) {
                 var detail = c.maskedEmail || c.maskedMobile || c.shareCode || '';
-                return '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid rgba(0,0,0,0.06);"><div><strong>' + esc(c.username) + '</strong> <span class="mini" style="color:#64748b;">' + esc(detail) + '</span></div><button class="btn btn-danger small-btn remove-contact-btn" data-username="' + esc(c.username) + '" style="font-size:11px;padding:4px 8px;" aria-label="Remove contact ' + esc(c.username) + '">Remove</button></div>';
+                return '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid rgba(0,0,0,0.06);"><div><strong>' + esc(c.displayName) + '</strong> <span class="mini" style="color:#64748b;">' + esc(detail) + '</span></div><button class="btn btn-danger small-btn remove-contact-btn" data-user-id="' + esc(c.userId) + '" style="font-size:11px;padding:4px 8px;" aria-label="Remove contact ' + esc(c.displayName) + '">Remove</button></div>';
             }).join('');
-            contactsList.querySelectorAll('.remove-contact-btn').forEach(function(btn) { btn.addEventListener('click', function() { socket.emit('removeContact', { username: btn.dataset.username }); }); });
+            contactsList.querySelectorAll('.remove-contact-btn').forEach(function(btn) { btn.addEventListener('click', function() { socket.emit('removeContact', { userId: btn.dataset.userId }); }); });
         }
         updateOnboarding();
     });
@@ -954,7 +1022,7 @@ navigator.geolocation.getCurrentPosition(
     socket.on('contactError', function(data) { setBanner('info', data.message || 'Contact error', []); setTimeout(function() { setBanner(null, null, null); }, 2500); });
     socket.on('roomCreated', function(data) { setBanner('info', 'Room "' + data.name + '" created! Code: ' + data.code, []); setTimeout(function() { setBanner(null, null, null); }, 3000); });
     socket.on('roomJoined', function(data) { setBanner('info', 'Joined room "' + data.name + '"', []); setTimeout(function() { setBanner(null, null, null); }, 2000); });
-    socket.on('contactAdded', function(data) { setBanner('info', 'Added ' + data.username + ' to contacts', []); setTimeout(function() { setBanner(null, null, null); }, 2000); });
+    socket.on('contactAdded', function(data) { setBanner('info', 'Added ' + (data.displayName || 'contact') + ' to contacts', []); setTimeout(function() { setBanner(null, null, null); }, 2000); });
     socket.on('liveLinkCreated', function(data) { var url = window.location.origin + '/live/' + data.token; navigator.clipboard.writeText(url).catch(function(){}); setBanner('info', 'Live link created and copied!', []); setTimeout(function() { setBanner(null, null, null); }, 2500); });
 
     socket.on('visibilityRefresh', function(users) {

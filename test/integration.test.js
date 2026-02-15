@@ -16,10 +16,10 @@ if (!hasDbUrl) process.env.DATABASE_URL = "postgresql://skip:skip@localhost:5432
 
 var request = require("supertest");
 
-var mod = require("../app");
+var mod = require("../backend/index");
 var server = mod.server;
 var io = mod.io;
-var db = require("../lib/db");
+var db = require("../backend/lib/db");
 
 var describeIfDb = hasDbUrl ? describe : describe.skip;
 
@@ -74,7 +74,7 @@ describeIfDb("Integration tests (requires DATABASE_URL)", function() {
             var res = await request(server)
                 .post("/login")
                 .type("form")
-                .send({ username: "test", password: "test" });
+                .send({ login_id: "test@example.com", password: "test" });
             expect(res.status).toBe(403);
         });
     });
@@ -84,7 +84,7 @@ describeIfDb("Integration tests (requires DATABASE_URL)", function() {
             var res = await request(server)
                 .post("/register")
                 .type("form")
-                .send({ username: "test", password: "testtest", confirm: "testtest" });
+                .send({ first_name: "Test", last_name: "User", password: "testtest", confirm: "testtest", contact_type: "email", contact_value: "test@example.com" });
             expect(res.status).toBe(403);
         });
     });
@@ -100,7 +100,8 @@ describeIfDb("Integration tests (requires DATABASE_URL)", function() {
     describe("Registration + Login flow", function() {
         var agent;
         var csrfToken;
-        var testUsername = "tu_" + String(Date.now()).slice(-8);
+        var testEmail = "testuser_" + String(Date.now()).slice(-8) + "@test.com";
+        var testUserId = null;
 
         beforeAll(function() {
             agent = request.agent(server);
@@ -119,9 +120,12 @@ describeIfDb("Integration tests (requires DATABASE_URL)", function() {
                 .post("/register")
                 .type("form")
                 .send({
-                    username: testUsername,
+                    first_name: "Test",
+                    last_name: "User",
                     password: "password123",
                     confirm: "password123",
+                    contact_type: "email",
+                    contact_value: testEmail,
                     _csrf: csrfToken
                 });
             expect(res.status).toBe(302);
@@ -131,7 +135,7 @@ describeIfDb("Integration tests (requires DATABASE_URL)", function() {
         it("can access main page after registration", async function() {
             var res = await agent.get("/");
             expect(res.status).toBe(200);
-            expect(res.text).toContain("Real-time Location Tracker");
+            expect(res.text).toContain("Kinnect");
         });
 
         it("gets CSRF token for logout", async function() {
@@ -156,10 +160,29 @@ describeIfDb("Integration tests (requires DATABASE_URL)", function() {
             expect(res.headers.location).toBe("/login");
         });
 
+        it("can log in with email + password", async function() {
+            // Get fresh CSRF token from login page
+            var loginPage = await agent.get("/login");
+            var match = loginPage.text.match(/name="_csrf"\s+value="([^"]+)"/);
+            expect(match).not.toBeNull();
+            var loginCsrf = match[1];
+
+            var res = await agent
+                .post("/login")
+                .type("form")
+                .send({
+                    login_id: testEmail,
+                    password: "password123",
+                    _csrf: loginCsrf
+                });
+            expect(res.status).toBe(302);
+            expect(res.headers.location).toBe("/");
+        });
+
         afterAll(async function() {
             // Clean up test user from DB
             try {
-                await db.getPool().query("DELETE FROM users WHERE username = $1", [testUsername]);
+                await db.getPool().query("DELETE FROM users WHERE email = $1", [testEmail]);
             } catch (_) {}
         });
     });

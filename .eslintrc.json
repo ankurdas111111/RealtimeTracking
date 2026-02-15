@@ -15,5 +15,5 @@
     "eqeqeq": ["error", "always"],
     "no-var": "off"
   },
-  "ignorePatterns": ["public/js/tracking.js", "node_modules/"]
+  "ignorePatterns": ["frontend/js/tracking.js", "frontend/js/country-codes.js", "node_modules/"]
 }

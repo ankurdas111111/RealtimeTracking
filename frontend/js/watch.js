@@ -35,7 +35,7 @@
         function esc(s) { var d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
         marker.bindPopup(
             '<div class="user-popup">' +
-            '<h4>' + esc(u.username || 'User') + '</h4>' +
+            '<h4>' + esc(u.displayName || 'User') + '</h4>' +
             '<p>Lat: ' + formatCoordinate(u.latitude) + '</p>' +
             '<p>Lng: ' + formatCoordinate(u.longitude) + '</p>' +
             '<p>Speed: ' + esc(String(u.speed || '0')) + ' km/h</p>' +

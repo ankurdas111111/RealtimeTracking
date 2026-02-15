@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#2563eb">
+  <title>Login - Kinnect</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/design-system.css">
+  <link rel="stylesheet" href="/css/auth.css">
+</head>
+<body class="auth-page">
+  <noscript><div class="auth-noscript"><h2>JavaScript Required</h2><p>Please enable JavaScript.</p></div></noscript>
+
+  <!-- Animated background -->
+  <div class="auth-bg"><div class="auth-bg-blob"></div></div>
+
+  <!-- Branding side (desktop only) -->
+  <div class="auth-brand">
+    <div class="auth-brand-logo">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="10" r="3"/><path d="M12 2a8 8 0 0 0-8 8c0 1.892.402 3.13 1.5 4.5L12 22l6.5-7.5c1.098-1.37 1.5-2.608 1.5-4.5a8 8 0 0 0-8-8z"/></svg>
+    </div>
+    <h1>Kinnect</h1>
+    <p>Your family, always close. Track, share, and stay connected in real time.</p>
+    <p class="text-xs text-muted" style="margin-top:var(--space-2);opacity:0.7;">Kinnect = Kin + Connect</p>
+  </div>
+
+  <!-- Form side -->
+  <div class="auth-form-area">
+    <div class="auth-card">
+      <h2>Welcome back</h2>
+      <p class="subtitle">Sign in to your tracking account</p>
+
+      <% if (error) { %>
+        <div class="auth-error">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          <%= error %>
+        </div>
+      <% } %>
+
+      <form method="POST" action="/login" id="loginForm">
+        <input type="hidden" name="_csrf" value="<%= typeof csrfToken !== 'undefined' ? csrfToken : '' %>">
+        <input type="hidden" name="login_method" id="loginMethod" value="email">
+
+        <!-- Email / Mobile toggle -->
+        <div class="auth-toggle">
+          <button type="button" class="auth-toggle-btn active" id="toggleEmail" aria-label="Login with email">Email</button>
+          <button type="button" class="auth-toggle-btn" id="toggleMobile" aria-label="Login with mobile number">Mobile</button>
+        </div>
+
+        <!-- Email field -->
+        <div class="auth-field" id="emailField">
+          <label for="login_email">Email address</label>
+          <input id="login_email" name="login_id" type="email" class="input" autocomplete="email" required autofocus placeholder="you@example.com" />
+          <span class="auth-hint" id="emailHint"></span>
+        </div>
+
+        <!-- Mobile field -->
+        <div class="auth-field" id="mobileField" style="display:none;">
+          <label>Mobile number</label>
+          <div class="auth-phone-row">
+            <select class="auth-cc-select" id="loginCountryCode" aria-label="Country code"></select>
+            <input id="login_mobile" type="tel" class="input" autocomplete="tel-national" inputmode="numeric" placeholder="9876543210" />
+          </div>
+          <span class="auth-hint" id="mobileHint"></span>
+        </div>
+
+        <!-- Password -->
+        <div class="auth-field">
+          <label for="password">Password</label>
+          <input id="password" name="password" type="password" class="input" autocomplete="current-password" required />
+        </div>
+
+        <button class="auth-submit" type="submit" id="submitBtn" aria-label="Sign in">Sign in</button>
+      </form>
+
+      <script src="/js/country-codes.js"></script>
+      <script nonce="<%= cspNonce %>">
+      (function() {
+        var emailBtn = document.getElementById('toggleEmail');
+        var mobileBtn = document.getElementById('toggleMobile');
+        var loginMethod = document.getElementById('loginMethod');
+        var emailField = document.getElementById('emailField');
+        var mobileField = document.getElementById('mobileField');
+        var emailInput = document.getElementById('login_email');
+        var mobileInput = document.getElementById('login_mobile');
+        var emailHint = document.getElementById('emailHint');
+        var mobileHint = document.getElementById('mobileHint');
+        var ccSelect = document.getElementById('loginCountryCode');
+        var form = document.getElementById('loginForm');
+        var CC = window.CountryCodes;
+        var mode = 'email';
+
+        // Theme: check localStorage or system preference
+        (function initTheme() {
+          var saved = localStorage.getItem('theme');
+          if (saved) { document.documentElement.setAttribute('data-theme', saved); }
+        })();
+
+        // Populate country code dropdown
+        CC.COUNTRY_CODES.forEach(function(c) {
+          var opt = document.createElement('option');
+          opt.value = c[1];
+          opt.textContent = c[3] + ' ' + c[0];
+          opt.dataset.dial = c[0];
+          opt.dataset.min = c[4];
+          opt.dataset.max = c[5];
+          ccSelect.appendChild(opt);
+        });
+        ccSelect.value = 'IN';
+
+        function getSelectedCountry() {
+          var opt = ccSelect.options[ccSelect.selectedIndex];
+          return { dial: opt.dataset.dial, min: parseInt(opt.dataset.min), max: parseInt(opt.dataset.max), name: opt.textContent };
+        }
+
+        function updateMobilePlaceholder() {
+          var c = getSelectedCountry();
+          var len = c.min === c.max ? c.min + ' digits' : c.min + '-' + c.max + ' digits';
+          mobileInput.placeholder = len;
+        }
+
+        function setEmail() {
+          mode = 'email';
+          emailBtn.classList.add('active'); mobileBtn.classList.remove('active');
+          loginMethod.value = 'email';
+          emailField.style.display = '';
+          mobileField.style.display = 'none';
+          emailInput.name = 'login_id';
+          emailInput.required = true;
+          mobileInput.required = false;
+          emailHint.textContent = '';
+          emailHint.classList.remove('error');
+        }
+
+        function setMobile() {
+          mode = 'mobile';
+          mobileBtn.classList.add('active'); emailBtn.classList.remove('active');
+          loginMethod.value = 'mobile';
+          emailField.style.display = 'none';
+          mobileField.style.display = '';
+          emailInput.removeAttribute('name');
+          emailInput.required = false;
+          mobileInput.required = true;
+          updateMobilePlaceholder();
+          mobileHint.textContent = '';
+          mobileHint.classList.remove('error');
+        }
+
+        ccSelect.addEventListener('change', function() { updateMobilePlaceholder(); validateMobileNow(); });
+        emailBtn.addEventListener('click', function(e) { e.preventDefault(); setEmail(); emailInput.focus(); });
+        mobileBtn.addEventListener('click', function(e) { e.preventDefault(); setMobile(); mobileInput.focus(); });
+
+        function isValidEmail(v) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v); }
+
+        function validateMobileNow() {
+          var digits = mobileInput.value.replace(/\D/g, '');
+          if (!digits) { mobileHint.textContent = ''; mobileHint.classList.remove('error'); return false; }
+          var result = CC.validateMobileLength(ccSelect.value, digits);
+          if (!result.valid) { mobileHint.textContent = result.msg; mobileHint.classList.add('error'); return false; }
+          mobileHint.textContent = ''; mobileHint.classList.remove('error'); return true;
+        }
+
+        emailInput.addEventListener('blur', function() {
+          var v = emailInput.value.trim();
+          if (!v) { emailHint.textContent = ''; emailHint.classList.remove('error'); return; }
+          if (!isValidEmail(v)) { emailHint.textContent = 'Enter a valid email address'; emailHint.classList.add('error'); }
+          else { emailHint.textContent = ''; emailHint.classList.remove('error'); }
+        });
+        mobileInput.addEventListener('blur', function() { validateMobileNow(); });
+
+        form.addEventListener('submit', function(e) {
+          if (mode === 'email') {
+            var v = emailInput.value.trim();
+            if (!isValidEmail(v)) {
+              e.preventDefault();
+              emailHint.textContent = 'Enter a valid email address'; emailHint.classList.add('error');
+              emailInput.focus();
+              return;
+            }
+          } else {
+            var digits = mobileInput.value.replace(/\D/g, '');
+            var result = CC.validateMobileLength(ccSelect.value, digits);
+            if (!digits || !result.valid) {
+              e.preventDefault();
+              mobileHint.textContent = result.msg || 'Enter your mobile number'; mobileHint.classList.add('error');
+              mobileInput.focus();
+              return;
+            }
+            var c = getSelectedCountry();
+            var fullNumber = c.dial + digits;
+            var hidden = document.getElementById('login_mobile_full');
+            if (!hidden) {
+              hidden = document.createElement('input');
+              hidden.type = 'hidden'; hidden.id = 'login_mobile_full'; hidden.name = 'login_id';
+              form.appendChild(hidden);
+            }
+            hidden.value = fullNumber;
+          }
+        });
+      })();
+      </script>
+
+      <p class="auth-link">Don't have an account? <a href="/register">Create one</a></p>
+    </div>
+  </div>
+</body>
+</html>

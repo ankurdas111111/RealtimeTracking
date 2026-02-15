@@ -94,7 +94,9 @@
             if (data.user) {
                 updateMarker(data.user);
                 onlineDot.classList.remove("offline");
+                onlineDot.classList.add("online");
             } else {
+                onlineDot.classList.remove("online");
                 onlineDot.classList.add("offline");
                 trackingLabel.textContent = escHtml(sharedByData) + " (offline)";
             }
@@ -111,6 +113,7 @@
             if (data.user) {
                 updateMarker(data.user);
                 onlineDot.classList.remove("offline");
+                onlineDot.classList.add("online");
                 trackingLabel.textContent = "Tracking " + escHtml(sharedByData);
             }
         });
@@ -135,10 +138,11 @@
             statusBar.style.display = "none";
             sosBanner.classList.remove("active");
             nameOverlay.classList.remove("hidden");
-            nameOverlay.innerHTML = '<div class="name-card"><h2 style="color:#ef4444;">Link Expired</h2><p class="subtitle">This live share link is no longer active.</p></div>';
+            nameOverlay.innerHTML = '<div class="name-card card"><div class="expired-card-icon"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg></div><h2 style="color:var(--danger-500);">Link Expired</h2><p class="subtitle">This live share link is no longer active.</p></div>';
         });
 
         socket.on("disconnect", function() {
+            onlineDot.classList.remove("online");
             onlineDot.classList.add("offline");
             trackingLabel.textContent = escHtml(sharedByData) + " (reconnecting...)";
         });
@@ -153,13 +157,13 @@
         if (typeof user.latitude !== "number" || typeof user.longitude !== "number") return;
         var ll = [user.latitude, user.longitude];
         var popupHtml = '<div class="live-popup">' +
-            '<strong>' + escHtml(user.username) + '</strong><br>' +
+            '<strong>' + escHtml(user.displayName || 'User') + '</strong><br>' +
             'Speed: ' + (user.speed || 0).toFixed(1) + ' km/h<br>' +
             'Updated: ' + escHtml(user.formattedTime || "N/A") +
             (user.batteryPct != null ? '<br>Battery: ' + user.batteryPct + '%' : '') +
             '</div>';
         if (!marker) {
-            var icon = (typeof createMapIcon === "function") ? createMapIcon("#6366f1", escHtml(user.username)) : L.divIcon({ html: '<div style="background:#6366f1;color:#fff;padding:4px 8px;border-radius:8px;font-size:12px;">' + escHtml(user.username) + '</div>', className: "" });
+            var icon = (typeof createMapIcon === "function") ? createMapIcon("#6366f1", escHtml(user.displayName || 'User')) : L.divIcon({ html: '<div style="background:#6366f1;color:#fff;padding:4px 8px;border-radius:8px;font-size:12px;">' + escHtml(user.displayName || 'User') + '</div>', className: "" });
             marker = L.marker(ll, { icon: icon }).addTo(map).bindPopup(popupHtml);
         } else {
             marker.setLatLng(ll).setPopupContent(popupHtml);
