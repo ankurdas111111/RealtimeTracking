@@ -968,9 +968,27 @@ navigator.geolocation.getCurrentPosition(
     if (addContactBtn) addContactBtn.addEventListener('click', function() { var code = addContactInput.value.trim().toUpperCase(); if (!code) return; socket.emit('addContact', { shareCode: code }); addContactInput.value = ''; });
     if (addContactByValueBtn) addContactByValueBtn.addEventListener('click', function() { var val = addContactByValueInput.value.trim(); if (!val) return; socket.emit('addContact', { contactValue: val }); addContactByValueInput.value = ''; });
     if (addContactByValueInput) addContactByValueInput.addEventListener('keydown', function(e) { if (e.key === 'Enter') { e.preventDefault(); if (addContactByValueBtn) addContactByValueBtn.click(); } });
-    ['1h', '6h', '24h'].forEach(function(d) { var btn = document.getElementById('liveLink' + d); if (btn) btn.addEventListener('click', function() { socket.emit('createLiveLink', { duration: d }); }); });
-    var liveLinkForever = document.getElementById('liveLinkForever');
-    if (liveLinkForever) liveLinkForever.addEventListener('click', function() { socket.emit('createLiveLink', { duration: null }); });
+    // Generate Link button + dropdown
+    var generateLinkBtn = document.getElementById('generateLinkBtn');
+    var linkDropdown = document.getElementById('linkDropdown');
+    if (generateLinkBtn && linkDropdown) {
+        generateLinkBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            linkDropdown.classList.toggle('ui-hidden');
+        });
+        linkDropdown.querySelectorAll('.link-option').forEach(function(opt) {
+            opt.addEventListener('click', function() {
+                var dur = opt.dataset.duration;
+                socket.emit('createLiveLink', { duration: dur === 'forever' ? null : dur });
+                linkDropdown.classList.add('ui-hidden');
+            });
+        });
+        document.addEventListener('click', function(e) {
+            if (!linkDropdown.classList.contains('ui-hidden') && !generateLinkBtn.contains(e.target) && !linkDropdown.contains(e.target)) {
+                linkDropdown.classList.add('ui-hidden');
+            }
+        });
+    }
 
     var myRoomsData = []; var myContactsData = [];
     socket.on('myShareCode', function(data) {

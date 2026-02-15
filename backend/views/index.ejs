@@ -343,11 +343,17 @@
             <div class="section-label">Live Sharing</div>
             <p class="text-xs text-muted" style="margin-bottom:var(--space-2);">Generate a public link anyone can open (no login).</p>
             <div id="liveLinksList"><p class="text-sm text-muted">No active links</p></div>
-            <div class="live-link-buttons">
-                <button class="btn btn-secondary btn-sm" id="liveLink1h" type="button" aria-label="Create 1 hour live link">1h</button>
-                <button class="btn btn-secondary btn-sm" id="liveLink6h" type="button" aria-label="Create 6 hour live link">6h</button>
-                <button class="btn btn-secondary btn-sm" id="liveLink24h" type="button" aria-label="Create 24 hour live link">24h</button>
-                <button class="btn btn-primary btn-sm" id="liveLinkForever" type="button" aria-label="Create permanent live link">Until I stop</button>
+            <div class="live-link-generate">
+                <button class="btn btn-primary btn-sm" id="generateLinkBtn" type="button" aria-label="Generate a live sharing link">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                    Generate Link
+                </button>
+                <div class="link-dropdown ui-hidden" id="linkDropdown">
+                    <button class="link-option" type="button" data-duration="1h">1 hour</button>
+                    <button class="link-option" type="button" data-duration="6h">6 hours</button>
+                    <button class="link-option" type="button" data-duration="24h">24 hours</button>
+                    <button class="link-option" type="button" data-duration="forever">Until I stop</button>
+                </div>
             </div>
 
             <div id="sharingOnboarding" style="display:none;">

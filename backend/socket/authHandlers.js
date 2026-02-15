@@ -225,6 +225,16 @@ function register(socket, safe, userId, role, displayName) {
         socket.emit("contactAdded", { userId: targetUserId, displayName: emitters.getDisplayName(targetUserId) });
         emitters.emitMyContacts(socket, user.userId);
         visibility.sendVisibilityRefreshIfChanged(socket, user);
+        // Notify the other user so they see us if they already have us in contacts
+        var theirContacts = cache.contacts.get(targetUserId);
+        if (theirContacts && theirContacts.has(user.userId)) {
+            visibility.invalidateVisibility(targetUserId);
+            var targetSocket = emitters.findSocketByUserId(targetUserId);
+            if (targetSocket) {
+                var targetUser = cache.activeUsers.get(targetSocket.id);
+                if (targetUser) visibility.sendVisibilityRefreshIfChanged(targetSocket, targetUser);
+            }
+        }
     }));
 
     socket.on("removeContact", safe(function(payload) {
@@ -241,6 +251,16 @@ function register(socket, safe, userId, role, displayName) {
         socket.emit("contactRemoved", { userId: targetUserId });
         emitters.emitMyContacts(socket, user.userId);
         visibility.sendVisibilityRefreshIfChanged(socket, user);
+        // Notify the other user so their map/list updates too
+        var theirContacts2 = cache.contacts.get(targetUserId);
+        if (theirContacts2 && theirContacts2.has(user.userId)) {
+            visibility.invalidateVisibility(targetUserId);
+            var targetSocket2 = emitters.findSocketByUserId(targetUserId);
+            if (targetSocket2) {
+                var targetUser2 = cache.activeUsers.get(targetSocket2.id);
+                if (targetUser2) visibility.sendVisibilityRefreshIfChanged(targetSocket2, targetUser2);
+            }
+        }
     }));
 
     // ─ Live Links (with limits + rate limiting) ─
