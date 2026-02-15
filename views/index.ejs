@@ -3,320 +3,29 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#2563eb">
     <title>Real-time Location Tracker</title>
-    
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-    
-    
     <link rel="stylesheet" href="/css/style.css">
-    
-    
-    <style>
-        
-        :root {
-            --bg: #f6f8fb;
-            --text: #0f172a;
-            --muted: #64748b;
-            --border: rgba(15, 23, 42, 0.10);
-            --card: rgba(255, 255, 255, 0.92);
-            --shadow: 0 12px 30px rgba(2, 6, 23, 0.10);
-            --primary: #2563eb;
-            --danger: #ef4444;
-            --success: #16a34a;
-        }
-
-        body {
-            margin: 0;
-            padding: 0;
-            font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
-            color: var(--text);
-            background: var(--bg);
-            -webkit-font-smoothing: antialiased;
-            -moz-osx-font-smoothing: grayscale;
-        }
-        
-        
-        #map {
-            height: 100vh;
-            width: 100%;
-        }
-        
-        
-        :root {
-            /* Reserve space so floating UI never overlaps (works across screen sizes). */
-            --ui-top: calc(86px + env(safe-area-inset-top));      /* SOS bar + breathing room */
-            --ui-bottom: calc(96px + env(safe-area-inset-bottom)); /* Control panel + breathing room */
-        }
-
-        @media (max-width: 600px) {
-            :root {
-                --ui-top: calc(148px + env(safe-area-inset-top));   /* SOS + banner room on small screens */
-                --ui-bottom: calc(170px + env(safe-area-inset-bottom)); /* control panel may wrap */
-            }
-        }
-
-        @media (max-height: 520px) {
-            :root {
-                --ui-top: calc(120px + env(safe-area-inset-top));
-                --ui-bottom: calc(140px + env(safe-area-inset-bottom));
-            }
-        }
-
-        .info-panel {
-            position: fixed;
-            top: var(--ui-top);
-            right: 10px;
-            z-index: 2000;
-            background: var(--card);
-            padding: 12px;
-            border-radius: 14px;
-            border: 1px solid var(--border);
-            box-shadow: var(--shadow);
-            width: min(360px, calc(100vw - 20px));
-            max-height: calc(100dvh - var(--ui-top) - var(--ui-bottom));
-            overflow: auto;
-            overscroll-behavior: contain;
-        }
-
-        @media (max-width: 600px) {
-            .info-panel {
-                left: 10px;
-                right: 10px;
-                width: auto;
-            }
-        }
-        
-        
-        .control-panel {
-            position: fixed;
-            bottom: calc(10px + env(safe-area-inset-bottom));
-            left: 10px;
-            z-index: 2500;
-            background: var(--card);
-            padding: 10px;
-            border-radius: 14px;
-            border: 1px solid var(--border);
-            box-shadow: var(--shadow);
-            display: flex;
-            gap: 10px;
-            align-items: center;
-            flex-wrap: wrap;
-            max-width: calc(100vw - 20px);
-        }
-
-        @media (max-width: 600px) {
-            .control-panel {
-                right: 10px;
-                justify-content: space-between;
-            }
-        }
-        
-        
-        /* Only style the legacy (non-.btn) buttons, so we don't override SOS/Alerts/admin buttons */
-        .control-panel button,
-        #updateNameBtn {
-            padding: 10px 14px;
-            background: var(--primary);
-            color: white;
-            border: none;
-            border-radius: 10px;
-            cursor: pointer;
-            font-weight: 700;
-            box-shadow: 0 14px 28px rgba(37, 99, 235, 0.18);
-            transition: transform 0.08s ease, filter 0.15s ease;
-        }
-        
-        .control-panel button:hover,
-        #updateNameBtn:hover {
-            filter: brightness(1.05);
-        }
-
-        .control-panel button:active,
-        #updateNameBtn:active {
-            transform: translateY(1px);
-        }
-
-        .control-panel #resetButton {
-            background: var(--danger) !important;
-            box-shadow: 0 10px 22px rgba(239, 68, 68, 0.18);
-        }
-        
-        
-        .user-name {
-            display: flex;
-            align-items: center;
-            margin-bottom: 10px;
-            gap: 8px;
-        }
-        
-        .user-name input {
-            padding: 10px 12px;
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            outline: none;
-            background: rgba(255, 255, 255, 0.85);
-            color: var(--text);
-            box-shadow: 0 1px 0 rgba(15, 23, 42, 0.04);
-        }
-
-        .user-name input:focus {
-            border-color: rgba(37, 99, 235, 0.35);
-            box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.12);
-        }
-        
-        
-        .user-list {
-            margin-top: 15px;
-            border-top: 1px solid var(--border);
-            padding-top: 12px;
-        }
-
-        h3 {
-            margin: 14px 0 8px 0;
-            font-size: 14px;
-            letter-spacing: 0.3px;
-            text-transform: uppercase;
-            color: rgba(15, 23, 42, 0.75);
-        }
-
-        p {
-            color: rgba(15, 23, 42, 0.75);
-        }
-        
-        
-        .user-item {
-            padding: 10px 10px;
-            border-bottom: 1px solid var(--border);
-            cursor: pointer;
-            transition: background-color 0.2s;
-            display: flex;
-            justify-content: space-between;
-            gap: 8px;
-            align-items: center;
-            border-radius: 12px;
-        }
-        
-        .user-item:hover {
-            background-color: rgba(37, 99, 235, 0.06);
-        }
-        
-        
-        .user-item.selected {
-            background-color: rgba(37, 99, 235, 0.10);
-            border-left: 3px solid var(--primary);
-        }
-        
-        .user-item .meta {
-            display: flex;
-            flex-direction: column;
-            gap: 2px;
-            min-width: 0;
-        }
-
-        .user-item .meta strong {
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
-        .user-item .actions {
-            display: flex;
-            gap: 6px;
-            flex-shrink: 0;
-        }
-
-        .user-item .small-btn {
-            padding: 6px 10px;
-            font-size: 12px;
-            border-radius: 6px;
-        }
-
-        .user-item .select-checkbox {
-            width: 18px;
-            height: 18px;
-        }
-
-        @media (max-width: 480px) {
-            .user-item .select-checkbox {
-                width: 22px;
-                height: 22px;
-            }
-        }
-
-        @media (max-width: 600px) {
-            .control-panel button {
-                flex: 1 1 140px;
-                width: auto;
-                max-width: none;
-            }
-
-            .user-name input {
-                flex: 1;
-                min-width: 140px;
-            }
-        }
-        
-        
-        .distance-indicator {
-            font-weight: bold;
-            color: var(--primary);
-        }
-        
-        
-        .no-users {
-            color: rgba(100, 116, 139, 0.95);
-            font-style: italic;
-        }
-        
-        
-        .user-popup h4 {
-            margin: 5px 0;
-        }
-        
-        .user-popup p {
-            margin: 3px 0;
-        }
-        
-        
-        .distance-display {
-            margin-top: 15px;
-            padding: 10px;
-            background-color: rgba(2, 6, 23, 0.04);
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            display: none;
-        }
-        
-        .distance-display.active {
-            display: block;
-        }
-        
-        
-        .clear-selection {
-            color: #F44336;
-            cursor: pointer;
-            margin-left: 5px;
-            font-size: 0.9em;
-        }
-        
-        
-        .tip {
-            font-size: 0.85em;
-            color: #666;
-            font-style: italic;
-            margin-top: 0;
-        }
-    </style>
+    <link rel="stylesheet" href="/css/index.css">
 </head>
 <body data-username="<%= authUser && authUser.username ? authUser.username : '' %>" data-role="<%= authUser && authUser.role ? authUser.role : '' %>">
+    <noscript><div style="padding:2rem;text-align:center;font-family:sans-serif;"><h2>JavaScript Required</h2><p>This app requires JavaScript to function. Please enable it in your browser settings.</p></div></noscript>
+
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-spinner-big"></div>
+        <div style="color:var(--muted);font-size:14px;">Connecting...</div>
+    </div>
+
     <div class="enable-alerts-overlay" id="enableAlertsOverlay">
         <div class="enable-alerts-card">
             <h2>Enable Alerts</h2>
             <p>This app uses sound/vibration for SOS and safety check-ins.</p>
-            <p><strong>Tap “Enable Alerts” once</strong> so your browser allows audio.</p>
+            <p><strong>Tap "Enable Alerts" once</strong> so your browser allows audio.</p>
             <div class="status-actions" style="margin-top:12px;">
-                <button class="btn btn-primary" id="enableAlertsBtn" type="button" style="font-size:16px; padding:12px 16px;">Enable Alerts</button>
-                <button class="btn btn-muted" id="skipAlertsBtn" type="button" style="font-size:14px; padding:10px 12px;">Continue without sound</button>
+                <button class="btn btn-primary" id="enableAlertsBtn" type="button" aria-label="Enable sound and vibration alerts" style="font-size:16px; padding:12px 16px;">Enable Alerts</button>
+                <button class="btn btn-muted" id="skipAlertsBtn" type="button" aria-label="Continue without sound alerts" style="font-size:14px; padding:10px 12px;">Continue without sound</button>
             </div>
         </div>
     </div>
@@ -335,46 +44,33 @@
     </div>
 
     <div class="sos-topbar">
-        <button class="btn btn-danger sos-btn-big" id="sosBtn" type="button">SOS</button>
-        <button class="btn alerts-btn" id="alertsSettingsBtn" type="button">Alerts</button>
-        <button class="btn btn-muted" id="infoPanelBtn" type="button">Panel</button>
+        <button class="btn btn-danger sos-btn-big" id="sosBtn" type="button" aria-label="Trigger SOS emergency alert">SOS</button>
+        <button class="btn alerts-btn" id="alertsSettingsBtn" type="button" aria-label="Open alerts settings">Alerts</button>
+        <button class="btn btn-muted" id="infoPanelBtn" type="button" aria-label="Toggle info panel">Panel</button>
+        <button class="btn btn-muted" id="sharePanelBtn" type="button" aria-label="Toggle sharing panel" style="background:rgba(34,197,94,0.28);border:2px solid rgba(255,255,255,0.42);box-shadow:0 12px 22px rgba(34,197,94,0.16);">Share</button>
         <% if (authUser && authUser.role === 'admin') { %>
-            <button class="btn btn-muted" id="adminPanelBtn" type="button">Admin</button>
+            <button class="btn btn-muted" id="adminPanelBtn" type="button" aria-label="Toggle admin panel">Admin</button>
         <% } %>
-        <button class="btn btn-muted" id="usersPanelBtn" type="button">Users</button>
+        <button class="btn btn-muted" id="usersPanelBtn" type="button" aria-label="Toggle users panel">Users</button>
     </div>
 
-    <% if (!authUser) { %>
-        <div class="admin-fab">
-            <a href="/admin" class="btn btn-muted" style="text-decoration:none;">Admin Login</a>
-        </div>
-    <% } %>
-    
     <div id="map"></div>
-    
-    
+
     <div class="info-panel" id="infoPanel">
         <div style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
             <div class="mini">
-                <% if (authUser && authUser.role === 'admin') { %>
-                    Logged in as <strong><%= authUser.username %></strong> (admin)
-                <% } %>
+                Logged in as <strong><%= authUser.username %></strong><%= authUser.role === 'admin' ? ' (admin)' : '' %>
             </div>
-            <% if (authUser && authUser.role === 'admin') { %>
-                <form method="POST" action="/logout" style="margin:0;">
-                    <button class="btn btn-muted" type="submit">Logout</button>
-                </form>
-            <% } %>
+            <form method="POST" action="/logout" style="margin:0;">
+                <input type="hidden" name="_csrf" value="<%= typeof csrfToken !== 'undefined' ? csrfToken : '' %>">
+                <button class="btn btn-muted" type="submit" aria-label="Log out" style="font-size:12px; padding:6px 10px;">Logout</button>
+            </form>
         </div>
-        
+
         <% const isAdmin = authUser && authUser.role === 'admin'; %>
-        <div class="user-name">
-            <input type="text" id="usernameInput" placeholder="Your name" value="<%= authUser && authUser.username ? authUser.username : '' %>">
-            <button id="updateNameBtn">Update</button>
-        </div>
-        
+
         <div style="display:flex; gap:8px; margin-bottom:10px; flex-wrap:wrap;">
-            <button class="btn btn-primary" id="imOkBtn" type="button">I'm OK</button>
+            <button class="btn btn-primary" id="imOkBtn" type="button" aria-label="Send I'm OK check-in">I'm OK</button>
         </div>
 
         <div style="display:flex; gap:8px; align-items:center; margin-bottom:10px; flex-wrap:wrap;">
@@ -392,7 +88,7 @@
                 <div class="panel-body" id="adminPanelBody">
                     <div style="display:flex; gap:8px; align-items:center; margin: 8px 0 10px 0; flex-wrap:wrap;">
                         <span class="mini">Apply to:</span>
-                        <select id="adminTargetSelect" style="flex:1; min-width: 180px; padding:6px; border:1px solid #ccc; border-radius:6px;"></select>
+                        <select id="adminTargetSelect" aria-label="Select target user" style="flex:1; min-width: 180px; padding:6px; border:1px solid #ccc; border-radius:6px;"></select>
                     </div>
                     <div style="display:flex; gap:10px; align-items:center; margin-bottom:10px; flex-wrap:wrap;">
                         <label style="display:flex; gap:6px; align-items:center;">
@@ -401,31 +97,31 @@
                         </label>
                         <label class="mini" style="display:flex; gap:6px; align-items:center;">
                             No-move (min)
-                            <input id="autoNoMoveMin" type="number" min="1" step="1" value="5" style="width:70px; padding:6px; border:1px solid #ccc; border-radius:6px;" />
+                            <input id="autoNoMoveMin" type="number" min="1" step="1" value="5" aria-label="No movement minutes threshold" style="width:70px; padding:6px; border:1px solid #ccc; border-radius:6px;" />
                         </label>
                         <label class="mini" style="display:flex; gap:6px; align-items:center;">
                             Hard-stop (min)
-                            <input id="autoHardStopMin" type="number" min="1" step="1" value="2" style="width:70px; padding:6px; border:1px solid #ccc; border-radius:6px;" />
+                            <input id="autoHardStopMin" type="number" min="1" step="1" value="2" aria-label="Hard stop minutes threshold" style="width:70px; padding:6px; border:1px solid #ccc; border-radius:6px;" />
                         </label>
                         <label style="display:flex; gap:6px; align-items:center;">
                             <input type="checkbox" id="geofenceToggle">
                             Geofence
                         </label>
-                        <input id="geofenceRadius" type="number" min="100" step="100" value="1500" style="width:90px; padding:6px; border:1px solid #ccc; border-radius:6px;" />
+                        <input id="geofenceRadius" type="number" min="100" step="100" value="1500" aria-label="Geofence radius in meters" style="width:90px; padding:6px; border:1px solid #ccc; border-radius:6px;" />
                         <span class="mini">m</span>
                     </div>
                     <div style="display:flex; gap:10px; align-items:center; margin-bottom:10px; flex-wrap:wrap;">
                         <label style="display:flex; gap:6px; align-items:center;">
                             <input type="checkbox" id="checkInToggle">
-                            I’m OK check-in
+                            I'm OK check-in
                         </label>
                         <label class="mini" style="display:flex; gap:6px; align-items:center;">
                             Interval (min)
-                            <input id="checkInIntervalMin" type="number" min="1" step="1" value="5" style="width:70px; padding:6px; border:1px solid #ccc; border-radius:6px;" />
+                            <input id="checkInIntervalMin" type="number" min="1" step="1" value="5" aria-label="Check-in interval minutes" style="width:70px; padding:6px; border:1px solid #ccc; border-radius:6px;" />
                         </label>
                         <label class="mini" style="display:flex; gap:6px; align-items:center;">
                             Overdue after (min)
-                            <input id="checkInOverdueMin" type="number" min="1" step="1" value="7" style="width:80px; padding:6px; border:1px solid #ccc; border-radius:6px;" />
+                            <input id="checkInOverdueMin" type="number" min="1" step="1" value="7" aria-label="Overdue after minutes" style="width:80px; padding:6px; border:1px solid #ccc; border-radius:6px;" />
                         </label>
                     </div>
                     <div style="display:flex; gap:10px; align-items:center; margin-bottom:10px; flex-wrap:wrap;">
@@ -435,24 +131,21 @@
                         </label>
                     </div>
                     <div style="display:flex; gap:8px; align-items:center; margin-bottom:10px;">
-                        <button class="btn btn-primary" id="adminApplyBtn" type="button">Apply / Update</button>
+                        <button class="btn btn-primary" id="adminApplyBtn" type="button" aria-label="Apply admin settings">Apply / Update</button>
                         <span class="mini">
-                            Check-in rule: user must tap “I’m OK” at least every interval; if overdue, admin gets an alert.
+                            Check-in rule: user must tap "I'm OK" at least every interval; if overdue, admin gets an alert.
                         </span>
                     </div>
                 </div>
             </div>
         <% } %>
-        
-        
+
         <h3>Your Location</h3>
         <p>Latitude: <span id="latitude">-</span></p>
         <p>Longitude: <span id="longitude">-</span></p>
         <p>Speed: <span id="speed">-</span> km/h</p>
         <p>Last Updated: <span id="timestamp">-</span></p>
         <p>Distance Traveled: <span id="distance">0</span> m</p>
-        
-        
     </div>
 
     <div class="users-panel" id="usersPanel">
@@ -462,11 +155,11 @@
         <div class="panel-body" id="usersPanelBody">
         <div class="distance-display" id="distanceDisplay">
             <h4>Distance Between Points</h4>
-            <p><span id="user1Name">-</span> to <span id="user2Name">-</span>: 
+            <p><span id="user1Name">-</span> to <span id="user2Name">-</span>:
             <span id="userDistance" class="distance-indicator">-</span>
             <span class="clear-selection" id="clearSelection">Clear</span></p>
         </div>
-        
+
         <div class="user-list">
             <p>Click on two points to measure distance</p>
                 <p class="tip">Tap a user row to focus on map. Use Select (max 2) to measure.</p>
@@ -476,1408 +169,78 @@
             </div>
         </div>
     </div>
-    
-    
+
+    <div class="sharing-panel ui-hidden" id="sharingPanel">
+        <div class="panel-header">
+            <div class="panel-title">Sharing</div>
+        </div>
+        <div class="panel-body" id="sharingPanelBody">
+            <div style="background:rgba(37,99,235,0.06); padding:10px; border-radius:10px; margin-bottom:12px;">
+                <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                    <span class="mini" style="font-weight:700;">My Code:</span>
+                    <strong id="myShareCode" style="font-size:16px; letter-spacing:1px;"><%= shareCode %></strong>
+                    <button class="btn btn-muted small-btn" id="copyShareCodeBtn" type="button" aria-label="Copy share code" style="font-size:11px; padding:5px 8px;">Copy</button>
+                </div>
+                <div id="myContactInfo" style="margin-top:6px; font-size:12px; color:#64748b;">
+                    <% if (userEmail) { %><span>Email: <strong><%= userEmail %></strong></span><% } %>
+                    <% if (userMobile) { %><span>Mobile: <strong><%= userMobile %></strong></span><% } %>
+                </div>
+            </div>
+            <div class="panel-section">
+                <strong>Rooms</strong>
+                <div id="roomsList" style="margin:8px 0;"><p class="mini">No rooms yet</p></div>
+                <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap; margin-top:6px;">
+                    <input type="text" id="roomNameInput" placeholder="Room name" aria-label="Room name" style="flex:1; min-width:80px; padding:8px; border:1px solid rgba(0,0,0,0.12); border-radius:8px; font-size:13px;">
+                    <button class="btn btn-primary small-btn" id="createRoomBtn" type="button" aria-label="Create room" style="padding:8px 12px; font-size:12px;">Create</button>
+                </div>
+                <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap; margin-top:6px;">
+                    <input type="text" id="joinRoomInput" placeholder="Room code" aria-label="Room code to join" style="flex:1; min-width:80px; padding:8px; border:1px solid rgba(0,0,0,0.12); border-radius:8px; font-size:13px; text-transform:uppercase;">
+                    <button class="btn btn-primary small-btn" id="joinRoomBtn" type="button" aria-label="Join room" style="padding:8px 12px; font-size:12px;">Join</button>
+                </div>
+            </div>
+            <div class="panel-section">
+                <strong>Contacts</strong>
+                <div id="contactsList" style="margin:8px 0;"><p class="mini">No contacts yet</p></div>
+                <div style="margin-top:6px;">
+                    <p class="mini" style="margin-bottom:4px; color:#64748b;">Add by email or mobile:</p>
+                    <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
+                        <input type="text" id="addContactByValueInput" placeholder="Email or mobile number" aria-label="Email or mobile to add contact" style="flex:1; min-width:120px; padding:8px; border:1px solid rgba(0,0,0,0.12); border-radius:8px; font-size:13px;">
+                        <button class="btn btn-primary small-btn" id="addContactByValueBtn" type="button" aria-label="Add contact by email or mobile" style="padding:8px 12px; font-size:12px;">Add</button>
+                    </div>
+                </div>
+                <div style="margin-top:6px;">
+                    <p class="mini" style="margin-bottom:4px; color:#94a3b8;">Or add by share code:</p>
+                    <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
+                        <input type="text" id="addContactInput" placeholder="Share code" aria-label="Share code to add contact" style="flex:1; min-width:80px; padding:8px; border:1px solid rgba(0,0,0,0.12); border-radius:8px; font-size:13px; text-transform:uppercase;">
+                        <button class="btn btn-primary small-btn" id="addContactBtn" type="button" aria-label="Add contact by share code" style="padding:8px 12px; font-size:12px;">Add</button>
+                    </div>
+                </div>
+            </div>
+            <div class="panel-section">
+                <strong>Live Sharing</strong>
+                <p class="mini" style="margin:4px 0 8px;">Generate a public link anyone can open (no login).</p>
+                <div id="liveLinksList" style="margin:8px 0;"><p class="mini">No active links</p></div>
+                <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap; margin-top:6px;">
+                    <button class="btn btn-muted small-btn" id="liveLink1h" type="button" aria-label="Create 1 hour live link" style="padding:6px 10px; font-size:11px;">1h</button>
+                    <button class="btn btn-muted small-btn" id="liveLink6h" type="button" aria-label="Create 6 hour live link" style="padding:6px 10px; font-size:11px;">6h</button>
+                    <button class="btn btn-muted small-btn" id="liveLink24h" type="button" aria-label="Create 24 hour live link" style="padding:6px 10px; font-size:11px;">24h</button>
+                    <button class="btn btn-primary small-btn" id="liveLinkForever" type="button" aria-label="Create permanent live link" style="padding:6px 10px; font-size:11px;">Until I stop</button>
+                </div>
+            </div>
+            <div id="sharingOnboarding" class="panel-section" style="display:none;">
+                <p class="mini" style="font-style:italic; color:#64748b;">You're not sharing with anyone yet. Create a room or exchange share codes to start seeing others on the map.</p>
+            </div>
+        </div>
+    </div>
+
     <div class="control-panel">
-        <button id="trackButton">Start Tracking</button>
-        <button id="resetButton" style="margin-left: 10px; background-color: #f44336;">Reset</button>
+        <button id="trackButton" aria-label="Start or stop location tracking">Start Tracking</button>
+        <button id="resetButton" aria-label="Reset tracking data" style="margin-left: 10px; background-color: #f44336;">Reset</button>
     </div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-            
-    
     <script src="/socket.io/socket.io.js"></script>
-    
-    
     <script src="/js/tracking.js"></script>
-    
-    <script>
-        const DEBUG = false;
-
-        const map = L.map('map').setView([0, 0], 2);
-        
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-        }).addTo(map);
-        
-        let marker = null;
-        let path = null;
-        let positions = [];
-        let timestamps = [];
-        let totalDistance = 0;
-        let tracking = false;
-        let watchId = null;
-
-        let myUsername = "";
-        let myLocation = null;
-        let mySocketId = null;
-
-        const otherUsers = new Map();
-        const otherUserMarkers = new Map();
-
-        let selectedUsers = [];
-        let distanceLine = null;
-        let distanceLabel = null;
-
-        const storedClientId = localStorage.getItem('clientId');
-        const clientId = storedClientId || (crypto && crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + '-' + Math.random().toString(16).slice(2));
-        if (!storedClientId) localStorage.setItem('clientId', clientId);
-        const socket = io({ auth: { clientId } });
-        
-        const latElement = document.getElementById('latitude');
-        const lngElement = document.getElementById('longitude');
-        const speedElement = document.getElementById('speed');
-        const timestampElement = document.getElementById('timestamp');
-        const distanceElement = document.getElementById('distance');
-        const trackButton = document.getElementById('trackButton');
-        const resetButton = document.getElementById('resetButton');
-        const otherUsersElement = document.getElementById('otherUsers');
-        const usernameInput = document.getElementById('usernameInput');
-        const updateNameBtn = document.getElementById('updateNameBtn');
-        const distanceDisplay = document.getElementById('distanceDisplay');
-        const user1NameElement = document.getElementById('user1Name');
-        const user2NameElement = document.getElementById('user2Name');
-        const userDistanceElement = document.getElementById('userDistance');
-        const clearSelectionButton = document.getElementById('clearSelection');
-        const sosBtn = document.getElementById('sosBtn');
-        const imOkBtn = document.getElementById('imOkBtn');
-        const keep48Toggle = document.getElementById('keep48Toggle');
-        const autoSosToggle = document.getElementById('autoSosToggle');
-        const autoNoMoveMin = document.getElementById('autoNoMoveMin');
-        const autoHardStopMin = document.getElementById('autoHardStopMin');
-        const geofenceToggle = document.getElementById('geofenceToggle');
-        const geofenceRadius = document.getElementById('geofenceRadius');
-        const adminTargetSelect = document.getElementById('adminTargetSelect');
-        const adminApplyBtn = document.getElementById('adminApplyBtn');
-        const checkInToggle = document.getElementById('checkInToggle');
-        const checkInIntervalMin = document.getElementById('checkInIntervalMin');
-        const checkInOverdueMin = document.getElementById('checkInOverdueMin');
-        const keepForeverToggle = document.getElementById('keepForeverToggle');
-        const statusBanner = document.getElementById('statusBanner');
-        const statusText = document.getElementById('statusText');
-        const statusActions = document.getElementById('statusActions');
-        const alertOverlay = document.getElementById('alertOverlay');
-        const alertTitle = document.getElementById('alertTitle');
-        const alertBody = document.getElementById('alertBody');
-        const alertActions = document.getElementById('alertActions');
-
-        const AUTH_USERNAME = document.body.dataset.username || '';
-        const IS_ADMIN = (document.body.dataset.role || '') === 'admin';
-
-        
-        
-        if (updateNameBtn) {
-        updateNameBtn.addEventListener('click', function() {
-            const newUsername = usernameInput.value.trim();
-            if (newUsername) {
-                myUsername = newUsername;
-                socket.emit('updateUsername', newUsername);
-                    scheduleOtherUsersListUpdate();
-                }
-            });
-        }
-
-        function setBanner(type, text, actions) {
-            statusBanner.classList.remove('sos', 'info', 'active');
-            statusActions.innerHTML = '';
-            if (!text) return;
-            statusBanner.classList.add('active');
-            statusBanner.classList.add(type === 'sos' ? 'sos' : 'info');
-            statusText.textContent = text;
-            (actions || []).forEach(a => {
-                const b = document.createElement('button');
-                b.className = `btn ${a.kind || 'btn-muted'}`;
-                b.textContent = a.label;
-                b.addEventListener('click', a.onClick);
-                statusActions.appendChild(b);
-            });
-        }
-
-        const enableAlertsOverlay = document.getElementById('enableAlertsOverlay');
-        const enableAlertsBtn = document.getElementById('enableAlertsBtn');
-        const skipAlertsBtn = document.getElementById('skipAlertsBtn');
-        const alertsSettingsBtn = document.getElementById('alertsSettingsBtn');
-        const infoPanelBtn = document.getElementById('infoPanelBtn');
-        const adminPanelBtn = document.getElementById('adminPanelBtn');
-        const usersPanelBtn = document.getElementById('usersPanelBtn');
-        const infoPanel = document.getElementById('infoPanel');
-        const usersPanel = document.getElementById('usersPanel');
-        const usersPanelBody = document.getElementById('usersPanelBody');
-        const adminPanel = document.getElementById('adminPanel');
-        const adminPanelBody = document.getElementById('adminPanelBody');
-        const adminPanelToggle = document.getElementById('adminPanelToggle'); // may not exist (we use top button now)
-
-        let userInteracted = (localStorage.getItem('alertsEnabled') === '1');
-        let pendingAlarmMs = 0;
-        function hideEnableAlerts() {
-            if (enableAlertsOverlay) enableAlertsOverlay.classList.remove('active');
-        }
-        function showEnableAlerts() {
-            if (enableAlertsOverlay) enableAlertsOverlay.classList.add('active');
-        }
-        function unlockAudioOnce() {
-            try {
-                const AudioCtx = window.AudioContext || window.webkitAudioContext;
-                const ctx = new AudioCtx();
-                // create a short beep to unlock (and confirm to the user)
-                if (ctx.state === 'suspended') ctx.resume();
-                const o = ctx.createOscillator();
-                const g = ctx.createGain();
-                o.type = 'sine';
-                o.frequency.value = 880;
-                g.gain.value = 0.05;
-                o.connect(g);
-                g.connect(ctx.destination);
-                o.start();
-                setTimeout(() => { o.stop(); ctx.close(); }, 180);
-            } catch (_) {}
-            try { if (navigator.vibrate) navigator.vibrate([120]); } catch (_) {}
-        }
-
-        if (!userInteracted) showEnableAlerts();
-        if (enableAlertsBtn) {
-            enableAlertsBtn.addEventListener('click', () => {
-                userInteracted = true;
-                localStorage.setItem('alertsEnabled', '1');
-                unlockAudioOnce();
-                hideEnableAlerts();
-                if (pendingAlarmMs > 0) {
-                    playAlarmForMs(pendingAlarmMs);
-                    pendingAlarmMs = 0;
-                }
-            });
-        }
-
-        function isSmallScreen() {
-            return window.matchMedia && window.matchMedia('(max-width: 760px)').matches;
-        }
-
-        function setInfoPanelActive(active) {
-            if (!infoPanel) return;
-            infoPanel.classList.toggle('ui-hidden', !active);
-            localStorage.setItem('infoPanelOpen', active ? '1' : '0');
-            // On small screens, opening the main panel hides users (avoid overlap)
-            if (usersPanel && isSmallScreen() && active) usersPanel.classList.add('ui-hidden');
-        }
-
-        function setAdminPanelOpen(open) {
-            if (!adminPanel) return;
-            adminPanel.classList.toggle('collapsed', !open);
-            localStorage.setItem('adminPanelOpen', open ? '1' : '0');
-        }
-
-        function setUsersPanelOpen(open) {
-            if (!usersPanel) return;
-            usersPanel.classList.toggle('ui-hidden', !open);
-            localStorage.setItem('usersPanelOpen', open ? '1' : '0');
-            // On small screens, opening users hides the main panel (avoid overlap)
-            if (infoPanel && isSmallScreen() && open) infoPanel.classList.add('ui-hidden');
-        }
-
-        // initial states
-        const infoOpen = localStorage.getItem('infoPanelOpen');
-        setInfoPanelActive(infoOpen !== '0'); // default open
-
-        const usersOpen = localStorage.getItem('usersPanelOpen');
-        // default: open on desktop, closed on small screens unless user chose otherwise
-        if (usersOpen === null) setUsersPanelOpen(!isSmallScreen());
-        else setUsersPanelOpen(usersOpen === '1');
-
-        if (IS_ADMIN && adminPanel) {
-            const open = localStorage.getItem('adminPanelOpen');
-            setAdminPanelOpen(open !== '0'); // default open
-        }
-
-        if (usersPanelBtn) {
-            usersPanelBtn.addEventListener('click', () => {
-                const open = !(usersPanel && !usersPanel.classList.contains('ui-hidden'));
-                setUsersPanelOpen(open);
-            });
-        }
-
-        if (infoPanelBtn) {
-            infoPanelBtn.addEventListener('click', () => {
-                const isHidden = infoPanel && infoPanel.classList.contains('ui-hidden');
-                setInfoPanelActive(isHidden);
-            });
-        }
-
-        if (adminPanelBtn) {
-            adminPanelBtn.addEventListener('click', () => {
-                const isCollapsed = adminPanel && adminPanel.classList.contains('collapsed');
-                setAdminPanelOpen(!!isCollapsed);
-                // Ensure the main panel is visible when expanding admin controls
-                if (isCollapsed) setInfoPanelActive(true);
-            });
-        }
-
-        window.addEventListener('resize', () => {
-            // On resize, if switching to desktop and users panel was never explicitly chosen,
-            // keep it visible by default. Otherwise respect stored preferences.
-            const usersPref = localStorage.getItem('usersPanelOpen');
-            if (usersPref === null) setUsersPanelOpen(!isSmallScreen());
-        });
-        if (skipAlertsBtn) {
-            skipAlertsBtn.addEventListener('click', () => {
-                userInteracted = false;
-                localStorage.setItem('alertsEnabled', '0');
-                hideEnableAlerts();
-            });
-        }
-        if (alertsSettingsBtn) {
-            alertsSettingsBtn.addEventListener('click', () => {
-                showEnableAlerts();
-            });
-        }
-
-        let alarmTimer = null;
-        let alarmStopAt = 0;
-        const silencedSos = new Set(); // socketIds acknowledged by this client; don't re-alarm on updates
-        let lastOwnSosActive = false;
-
-        function stopAlarmLoop() {
-            if (alarmTimer) {
-                clearInterval(alarmTimer);
-                alarmTimer = null;
-            }
-            alarmStopAt = 0;
-        }
-
-        function playAlarmOnce() {
-            // Best-effort: browsers may block audio until user interacts.
-            if (!userInteracted) return;
-            try {
-                const AudioCtx = window.AudioContext || window.webkitAudioContext;
-                const ctx = new AudioCtx();
-                const o = ctx.createOscillator();
-                const g = ctx.createGain();
-                o.type = 'square';
-                o.frequency.value = 880;
-                g.gain.value = 0.05;
-                o.connect(g);
-                g.connect(ctx.destination);
-                o.start();
-                setTimeout(() => { o.stop(); ctx.close(); }, 800);
-            } catch (_) {}
-            try { if (navigator.vibrate) navigator.vibrate([200, 100, 200, 100, 400]); } catch (_) {}
-        }
-
-        function playAlarmForMs(totalMs) {
-            stopAlarmLoop();
-            if (!userInteracted) {
-                pendingAlarmMs = totalMs || 0;
-                showEnableAlerts();
-                return;
-            }
-            alarmStopAt = Date.now() + (totalMs || 0);
-            playAlarmOnce();
-            alarmTimer = setInterval(() => {
-                if (Date.now() >= alarmStopAt) {
-                    stopAlarmLoop();
-                    return;
-                }
-                playAlarmOnce();
-            }, 1200);
-        }
-
-        function showAlert(title, body, actions, alarmMs) {
-            if (!alertOverlay) return;
-            alertTitle.textContent = title;
-            alertBody.textContent = body || '';
-            alertActions.innerHTML = '';
-            (actions || []).forEach(a => {
-                const b = document.createElement('button');
-                b.className = `btn ${a.kind || 'btn-muted'}`;
-                b.textContent = a.label;
-                b.addEventListener('click', a.onClick);
-                alertActions.appendChild(b);
-            });
-            alertOverlay.classList.add('active');
-            if (alarmMs) playAlarmForMs(alarmMs);
-        }
-
-        function hideAlert() {
-            if (!alertOverlay) return;
-            alertOverlay.classList.remove('active');
-            stopAlarmLoop();
-        }
-
-        function deviceType() {
-            const ua = navigator.userAgent || '';
-            return /Mobi|Android/i.test(ua) ? 'Mobile' : 'Desktop';
-        }
-
-        async function pushProfile() {
-            let batteryPct = null;
-            try {
-                if (navigator.getBattery) {
-                    const b = await navigator.getBattery();
-                    batteryPct = Math.round((b.level || 0) * 100);
-                }
-            } catch (_) {}
-            let connectionQuality = 'Unknown';
-            try {
-                const ping = socket && socket.io && socket.io.engine ? socket.io.engine.ping : null;
-                if (typeof ping === 'number') {
-                    if (ping <= 80) connectionQuality = 'Good';
-                    else if (ping <= 200) connectionQuality = 'OK';
-                    else connectionQuality = 'Poor';
-                }
-            } catch (_) {}
-            socket.emit('profileUpdate', { batteryPct, deviceType: deviceType(), connectionQuality });
-        }
-
-        function getTargetUserById(id) {
-            if (id === 'me') return { socketId: mySocketId, username: myUsername, latitude: myLocation && myLocation.latitude, longitude: myLocation && myLocation.longitude };
-            return otherUsers.get(id) || null;
-        }
-
-        function currentAutoRuleMinutes() {
-            const noMove = autoNoMoveMin ? Number(autoNoMoveMin.value || 0) : 5;
-            const hardStop = autoHardStopMin ? Number(autoHardStopMin.value || 0) : 2;
-            return {
-                noMoveMinutes: Number.isFinite(noMove) && noMove > 0 ? noMove : 5,
-                hardStopMinutes: Number.isFinite(hardStop) && hardStop > 0 ? hardStop : 2
-            };
-        }
-
-        function populateAdminControlsFromTarget() {
-            if (!IS_ADMIN) return;
-            const targetId = getSelectedTargetId();
-            const target = targetId ? getTargetUserById(targetId) : null;
-            if (!target) return;
-            if (autoSosToggle && target.autoSos) autoSosToggle.checked = !!target.autoSos.enabled;
-            if (autoNoMoveMin && target.autoSos && typeof target.autoSos.noMoveMinutes === 'number') autoNoMoveMin.value = String(target.autoSos.noMoveMinutes);
-            if (autoHardStopMin && target.autoSos && typeof target.autoSos.hardStopMinutes === 'number') autoHardStopMin.value = String(target.autoSos.hardStopMinutes);
-            if (geofenceToggle && target.geofence) geofenceToggle.checked = !!target.geofence.enabled;
-            if (geofenceRadius && target.geofence && typeof target.geofence.radiusM === 'number' && target.geofence.radiusM) geofenceRadius.value = String(target.geofence.radiusM);
-            if (checkInToggle && target.checkIn) checkInToggle.checked = !!target.checkIn.enabled;
-            if (checkInIntervalMin && target.checkIn && typeof target.checkIn.intervalMinutes === 'number') checkInIntervalMin.value = String(target.checkIn.intervalMinutes);
-            if (checkInOverdueMin && target.checkIn && typeof target.checkIn.overdueMinutes === 'number') checkInOverdueMin.value = String(target.checkIn.overdueMinutes);
-            if (keepForeverToggle && target.retention) keepForeverToggle.checked = (target.retention.mode === 'forever');
-        }
-
-        function applyAdminSettings() {
-            if (!IS_ADMIN) return;
-            const targetId = getSelectedTargetId();
-            const target = targetId ? getTargetUserById(targetId) : null;
-            const socketId = target && target.socketId ? target.socketId : undefined;
-
-            if (autoSosToggle) {
-                const mins = currentAutoRuleMinutes();
-                socket.emit('setAutoSos', {
-                    socketId,
-                    enabled: !!autoSosToggle.checked,
-                    noMoveMinutes: mins.noMoveMinutes,
-                    hardStopMinutes: mins.hardStopMinutes,
-                    geofence: !!(geofenceToggle && geofenceToggle.checked)
-                });
-            }
-
-            if (geofenceToggle) {
-                const r = geofenceRadius ? Number(geofenceRadius.value || 0) : 0;
-                if (!geofenceToggle.checked) {
-                    socket.emit('setGeofence', { socketId, enabled: false });
-                } else {
-                    if (!r) {
-                        setBanner('info', 'Set a geofence radius (meters) first, then click Apply.', []);
-                        geofenceToggle.checked = false;
-                        return;
-                    }
-                    const hasTargetLoc = target && typeof target.latitude === 'number' && typeof target.longitude === 'number';
-                    const hasMyLoc = myLocation && typeof myLocation.latitude === 'number' && typeof myLocation.longitude === 'number';
-                    if (!hasTargetLoc && !hasMyLoc) {
-                        setBanner('info', 'Start Tracking (or select a user with a location) to set geofence center.', []);
-                        geofenceToggle.checked = false;
-                        socket.emit('setGeofence', { socketId, enabled: false });
-                        return;
-                    }
-                    const centerLat = hasTargetLoc ? target.latitude : myLocation.latitude;
-                    const centerLng = hasTargetLoc ? target.longitude : myLocation.longitude;
-                    socket.emit('setGeofence', { socketId, enabled: true, centerLat, centerLng, radiusM: r });
-                }
-            }
-
-            // I’m OK / check-in rules
-            if (checkInToggle) {
-                const intervalMinutes = checkInIntervalMin ? Number(checkInIntervalMin.value || 0) : 5;
-                const overdueMinutes = checkInOverdueMin ? Number(checkInOverdueMin.value || 0) : 7;
-                socket.emit('setCheckInRules', {
-                    socketId,
-                    enabled: !!checkInToggle.checked,
-                    intervalMinutes: (Number.isFinite(intervalMinutes) && intervalMinutes > 0) ? intervalMinutes : 5,
-                    overdueMinutes: (Number.isFinite(overdueMinutes) && overdueMinutes > 0) ? overdueMinutes : 7
-                });
-            }
-
-            // Retention (admin only): keep selected user forever
-            if (keepForeverToggle && socketId) {
-                socket.emit('setRetentionForever', { socketId, forever: !!keepForeverToggle.checked });
-            }
-
-            setBanner('info', 'Admin settings applied.', []);
-            setTimeout(() => setBanner(null, null, null), 1500);
-        }
-
-        let adminTargetId = 'me';
-        let adminTargetRefreshScheduled = false;
-        let lastAdminOptionsKey = '';
-
-        function getSelectedTargetId() {
-            if (!IS_ADMIN || !adminTargetSelect) return null;
-            return adminTargetId || 'me';
-        }
-
-        function adminOptionsKey() {
-            const ids = ['me'];
-            otherUsers.forEach(u => ids.push(u.socketId));
-            ids.sort();
-            return ids.join('|');
-        }
-
-        function refreshAdminTargetOptionsNow() {
-            if (!IS_ADMIN || !adminTargetSelect) return;
-            // Don't fight the user while they're interacting with the dropdown
-            if (document.activeElement === adminTargetSelect) return;
-
-            const key = adminOptionsKey();
-            if (key === lastAdminOptionsKey) return;
-            lastAdminOptionsKey = key;
-
-            adminTargetSelect.innerHTML = '';
-            const optMe = document.createElement('option');
-            optMe.value = 'me';
-            optMe.textContent = `${myUsername || 'Me'} (me)`;
-            adminTargetSelect.appendChild(optMe);
-
-            otherUsers.forEach(u => {
-                const o = document.createElement('option');
-                o.value = u.socketId;
-                o.textContent = `${u.username || u.socketId}`;
-                adminTargetSelect.appendChild(o);
-            });
-
-            // restore selected target if still present
-            const exists = [...adminTargetSelect.options].some(o => o.value === adminTargetId);
-            adminTargetSelect.value = exists ? adminTargetId : 'me';
-            adminTargetId = adminTargetSelect.value;
-        }
-
-        function refreshAdminTargetOptions() {
-            if (!IS_ADMIN || !adminTargetSelect) return;
-            if (adminTargetRefreshScheduled) return;
-            adminTargetRefreshScheduled = true;
-            requestAnimationFrame(() => {
-                adminTargetRefreshScheduled = false;
-                refreshAdminTargetOptionsNow();
-            });
-        }
-
-        if (adminTargetSelect) {
-            adminTargetSelect.addEventListener('change', () => {
-                adminTargetId = adminTargetSelect.value || 'me';
-                populateAdminControlsFromTarget();
-            });
-            adminTargetSelect.addEventListener('blur', () => {
-                refreshAdminTargetOptionsNow();
-            });
-        }
-
-        setInterval(() => {
-            if (socket && socket.connected) pushProfile();
-        }, 10000);
-
-        sosBtn.addEventListener('click', () => {
-            const active = sosBtn.dataset.active === '1';
-            if (!active) {
-                socket.emit('triggerSOS', { reason: 'SOS' });
-            } else {
-                socket.emit('cancelSOS');
-            }
-        });
-
-        imOkBtn.addEventListener('click', () => {
-            socket.emit('checkInAck');
-            setBanner('info', 'Check-in sent.', []);
-            setTimeout(() => setBanner(null, null, null), 2000);
-        });
-
-        if (keep48Toggle) {
-            keep48Toggle.addEventListener('change', () => {
-                socket.emit('setRetention', { mode: keep48Toggle.checked ? '48h' : 'default' });
-                setBanner('info', keep48Toggle.checked ? 'Will keep your last location for 48h after disconnect.' : 'Your location will be removed on disconnect.', []);
-                setTimeout(() => setBanner(null, null, null), 2000);
-            });
-        }
-
-        if (adminApplyBtn) adminApplyBtn.addEventListener('click', applyAdminSettings);
-
-        // Visualize geofences for users (admin page only)
-        const geofenceCircles = new Map();
-        function upsertGeofenceCircle(user) {
-            if (!IS_ADMIN || !user || !user.socketId) return;
-            const enabled = user.geofence && user.geofence.enabled;
-            const cLat = enabled ? user.geofence.centerLat : null;
-            const cLng = enabled ? user.geofence.centerLng : null;
-            const r = enabled ? Number(user.geofence.radiusM || 0) : 0;
-            const key = user.socketId;
-            const existing = geofenceCircles.get(key);
-            if (!enabled || typeof cLat !== 'number' || typeof cLng !== 'number' || !(r > 0)) {
-                if (existing) { map.removeLayer(existing); geofenceCircles.delete(key); }
-                return;
-            }
-            if (!existing) {
-                const circle = L.circle([cLat, cLng], { radius: r, color: '#9C27B0', weight: 2, fillColor: '#9C27B0', fillOpacity: 0.08 });
-                circle.addTo(map);
-                geofenceCircles.set(key, circle);
-            } else {
-                existing.setLatLng([cLat, cLng]);
-                existing.setRadius(r);
-            }
-        }
-        
-        
-        clearSelectionButton.addEventListener('click', function(e) {
-            e.stopPropagation();
-            clearSelectedUsers();
-        });
-        
-        
-        trackButton.addEventListener('click', function() {
-            if (!tracking) {
-                startTracking();
-                this.textContent = 'Stop Tracking';
-                tracking = true;
-            } else {
-                stopTracking();
-                this.textContent = 'Start Tracking';
-                tracking = false;
-            }
-        });
-        
-        
-        resetButton.addEventListener('click', function() {
-            resetTracking();
-        });
-        
-        
-        map.on('click', function(e) {
-
-            const clickedLat = e.latlng.lat;
-            const clickedLng = e.latlng.lng;
-            
-            const posName = `Position (${formatCoordinate(clickedLat)}, ${formatCoordinate(clickedLng)})`;
-            const clickId = `click-${Date.now()}`;
-            
-            handleUserSelection(clickId, posName, {
-                latitude: clickedLat,
-                longitude: clickedLng
-            });
-            
-            const isSelected = selectedUsers.some(user => user.id === clickId);
-            if (isSelected) {
-                const clickMarker = L.marker([clickedLat, clickedLng], {
-                    icon: createMapIcon('#9C27B0', '')
-                }).addTo(map);
-                
-                otherUserMarkers.set(clickId, clickMarker);
-                
-                clickMarker.bindPopup(`
-                    <div class="user-popup">
-                        <h4>Clicked Position</h4>
-                        <p>Lat: ${formatCoordinate(clickedLat)}</p>
-                        <p>Lng: ${formatCoordinate(clickedLng)}</p>
-                    </div>
-                `);
-                clickMarker.on('mouseover', () => clickMarker.openPopup());
-                clickMarker.on('mouseout', () => clickMarker.closePopup());
-                clickMarker.openPopup();
-            }
-        });
-        
-        
-        
-        function startTracking() {
-            if (navigator.geolocation) {
-
-                watchId = navigator.geolocation.watchPosition(
-                    handlePosition,
-                    handleError,
-                    { 
-                        enableHighAccuracy: true,
-                        maximumAge: 0,
-                        timeout: 10000
-                    }
-                );
-            } else {
-                alert('Geolocation is not supported by this browser.');
-            }
-        }
-        
-        
-        function stopTracking() {
-            if (watchId !== null) {
-                navigator.geolocation.clearWatch(watchId);
-                watchId = null;
-            }
-        }
-        
-        
-        function resetTracking() {
-
-            positions = [];
-            timestamps = [];
-            totalDistance = 0;
-            
-            distanceElement.textContent = '0';
-            
-            if (marker) {
-                map.removeLayer(marker);
-                marker = null;
-            }
-            
-            if (path) {
-                map.removeLayer(path);
-                path = null;
-            }
-            
-            otherUserMarkers.forEach((marker, id) => {
-                if (id.startsWith('click-')) {
-                    map.removeLayer(marker);
-                    otherUserMarkers.delete(id);
-                }
-            });
-            
-            map.setView([0, 0], 2);
-            
-            if (tracking) {
-                stopTracking();
-                trackButton.textContent = 'Start Tracking';
-                tracking = false;
-            }
-            
-            clearSelectedUsers();
-        }
-        
-        
-        function handlePosition(position) {
-
-            const { latitude, longitude } = position.coords;
-            const speed = position.coords.speed ? (position.coords.speed * 3.6).toFixed(1) : '0';
-            const timestamp = new Date().toLocaleTimeString();
-            const currentTime = Date.now();
-            
-            myLocation = { latitude, longitude };
-            
-            latElement.textContent = formatCoordinate(latitude);
-            lngElement.textContent = formatCoordinate(longitude);
-            speedElement.textContent = speed;
-            timestampElement.textContent = timestamp;
-            
-            if (positions.length > 0) {
-                const [prevLat, prevLng] = positions[positions.length - 1];
-                const distance = calculateDistance(prevLat, prevLng, latitude, longitude);
-                totalDistance += distance;
-                distanceElement.textContent = Math.round(totalDistance);
-            }
-            
-            updateMap(latitude, longitude);
-            
-            positions.push([latitude, longitude]);
-            timestamps.push(currentTime);
-            
-            socket.emit('position', {
-                latitude,
-                longitude,
-                speed,
-                timestamp: currentTime,
-                formattedTime: timestamp
-            });
-            
-            updateDistanceBetweenSelectedUsers(false);
-            if (socket && socket.connected) pushProfile();
-        }
-        
-        
-        function handleError(error) {
-            console.error('Error getting location:', error.message);
-            
-            if (error.code === error.PERMISSION_DENIED) {
-
-                alert('Location access denied. Please enable location permissions in your browser settings.');
-            } else if (tracking) {
-
-                const errorMessage = document.createElement('div');
-                errorMessage.className = 'location-error';
-                errorMessage.textContent = 'Location temporarily unavailable. Retrying...';
-                errorMessage.style.color = '#f44336';
-                errorMessage.style.padding = '5px 0';
-                errorMessage.style.fontSize = '0.9em';
-                
-                const locationInfo = latElement.closest('p');
-                if (locationInfo && !document.querySelector('.location-error')) {
-                    locationInfo.parentNode.insertBefore(errorMessage, locationInfo);
-                    
-                    setTimeout(() => {
-                        if (errorMessage.parentNode) {
-                            errorMessage.parentNode.removeChild(errorMessage);
-                        }
-                    }, 5000);
-                }
-            }
-        }
-        
-        
-        function updateMap(lat, lng) {
-            const newLatLng = [lat, lng];
-            
-            if (!marker) {
-
-                marker = L.marker(newLatLng).addTo(map)
-                    .bindPopup(`<div class="location-popup">
-                        <h4>Your Location</h4>
-                        <p>Lat: ${formatCoordinate(lat)}</p>
-                        <p>Lng: ${formatCoordinate(lng)}</p>
-                    </div>`);
-                marker.on('mouseover', () => marker.openPopup());
-                marker.on('mouseout', () => marker.closePopup());
-            } else {
-
-                marker.setLatLng(newLatLng);
-                marker.getPopup().setContent(`<div class="location-popup">
-                    <h4>Your Location</h4>
-                    <p>Lat: ${formatCoordinate(lat)}</p>
-                    <p>Lng: ${formatCoordinate(lng)}</p>
-                </div>`);
-            }
-            
-            if (path) {
-                map.removeLayer(path);
-            }
-            
-            if (positions.length > 1) {
-                path = L.polyline(positions, {
-                    color: 'blue',
-                    weight: 3,
-                    opacity: 0.7,
-                    className: 'tracking-path'
-                }).addTo(map);
-            }
-            
-            map.setView(newLatLng, 16);
-        }
-        
-        
-        
-        function updateOtherUsersList() {
-
-            if (otherUsers.size === 0 && !myLocation) {
-                otherUsersElement.innerHTML = '<p class="no-users">No other users online</p>';
-                return;
-            }
-            
-            otherUsersElement.innerHTML = '';
-            
-            if (myLocation) {
-                const myItem = document.createElement('div');
-                myItem.className = 'user-item';
-                myItem.dataset.id = 'me';
-                myItem.dataset.name = myUsername || 'You';
-                myItem.dataset.lat = String(myLocation.latitude);
-                myItem.dataset.lng = String(myLocation.longitude);
-
-                if (selectedUsers.some(user => user.id === 'me')) {
-                    myItem.classList.add('selected');
-                }
-                
-                myItem.innerHTML = `
-                    <div class="meta">
-                    <strong>${myUsername || 'You'} (You)</strong>
-                        <div class="mini">Last update: ${timestampElement.textContent}</div>
-                    </div>
-                    <div class="actions">
-                        <label class="mini" style="display:flex; align-items:center; gap:6px;">
-                            <input class="select-checkbox" type="checkbox" data-action="select" ${selectedUsers.some(u => u.id === 'me') ? 'checked' : ''}>
-                            Select
-                        </label>
-                    </div>
-                `;
-                
-                otherUsersElement.appendChild(myItem);
-            }
-            
-            otherUsers.forEach(user => {
-                if (user.socketId !== mySocketId && user.latitude && user.longitude) {
-                    const userItem = document.createElement('div');
-                    userItem.className = 'user-item';
-                    userItem.dataset.id = user.socketId;
-                    userItem.dataset.name = user.username || user.socketId;
-                    userItem.dataset.lat = String(user.latitude);
-                    userItem.dataset.lng = String(user.longitude);
-
-                    if (selectedUsers.some(selected => selected.id === user.socketId)) {
-                        userItem.classList.add('selected');
-                    }
-                    
-                    const isOffline = (user.online === false);
-                    const expiresAt = (typeof user.offlineExpiresAt === 'number') ? user.offlineExpiresAt : null;
-                    const expiresIn = (() => {
-                        if (!isOffline) return 'Online';
-                        if (!expiresAt) return 'Offline • kept forever';
-                        const ms = expiresAt - Date.now();
-                        if (ms <= 0) return 'Offline • expiring soon';
-                        const mins = Math.floor(ms / 60000);
-                        const h = Math.floor(mins / 60);
-                        const m = mins % 60;
-                        if (h <= 0) return `Offline • expires in ${m}m`;
-                        return `Offline • expires in ${h}h ${m}m`;
-                    })();
-                    
-                    userItem.innerHTML = `
-                        <div class="meta">
-                        <strong>${user.username}</strong>
-                            <div class="mini">${expiresIn}</div>
-                            <div class="mini">Last update: ${user.formattedTime || formatTimestamp(user.lastUpdate)}</div>
-                        </div>
-                        <div class="actions">
-                            <label class="mini" style="display:flex; align-items:center; gap:6px;">
-                                <input class="select-checkbox" type="checkbox" data-action="select" ${selectedUsers.some(s => s.id === user.socketId) ? 'checked' : ''}>
-                                Select
-                            </label>
-                            ${IS_ADMIN ? `<button class="btn btn-danger small-btn" type="button" data-action="delete">Delete</button>` : ``}
-                        </div>
-                    `;
-                    
-                    otherUsersElement.appendChild(userItem);
-                }
-            });
-            
-            if (otherUsersElement.children.length === 0) {
-                otherUsersElement.innerHTML = '<p class="no-users">No other users online</p>';
-            } else if (otherUsersElement.children.length === 1 && myLocation) {
-
-                const waitMessage = document.createElement('p');
-                waitMessage.className = 'no-users';
-                waitMessage.textContent = 'Waiting for other users to connect...';
-                otherUsersElement.appendChild(waitMessage);
-            }
-        }
-        
-        function focusOnLocation(id, location) {
-            if (!location || typeof location.latitude !== 'number' || typeof location.longitude !== 'number') return;
-            const latlng = [location.latitude, location.longitude];
-            map.setView(latlng, 16);
-            if (id === 'me' && marker) {
-                marker.openPopup();
-                return;
-            }
-            if (id === 'me' && !marker) {
-                // ensure marker exists for self if we have a location
-                updateMap(location.latitude, location.longitude);
-                if (marker) marker.openPopup();
-                return;
-            }
-            let m = otherUserMarkers.get(id);
-            if (!m) {
-                const u = otherUsers.get(id);
-                if (u && typeof u.latitude === 'number' && typeof u.longitude === 'number') {
-                    createOrUpdateUserMarker(u);
-                    m = otherUserMarkers.get(id);
-                }
-            }
-            if (m) m.openPopup();
-        }
-
-        // Event delegation for mobile-safe interactions in the user list:
-        // - Tap row: focus map + open popup
-        // - Toggle checkbox: select/deselect (max 2 handled by handleUserSelection)
-        // - Admin delete button: delete user
-        function handleAdminDeleteFromEventTarget(target) {
-            const btn = target && target.closest ? target.closest('button[data-action="delete"]') : null;
-            if (!btn) return false;
-            const row = btn.closest('.user-item');
-            if (!row) return true;
-            const id = row.dataset.id;
-            const name = row.dataset.name || id;
-            if (!id || id === 'me') return true;
-            if (!IS_ADMIN) return true;
-            if (!confirm(`Delete user "${name}"? This will disconnect them and remove them from the map.`)) return true;
-            socket.emit('adminDeleteUser', { socketId: id });
-            setBanner('info', `Deleted ${name}.`, []);
-            setTimeout(() => setBanner(null, null, null), 1500);
-            return true;
-        }
-
-        otherUsersElement.addEventListener('click', (e) => {
-            if (handleAdminDeleteFromEventTarget(e.target)) {
-                e.preventDefault();
-                e.stopPropagation();
-            }
-        });
-
-        otherUsersElement.addEventListener('pointerup', (e) => {
-            if (handleAdminDeleteFromEventTarget(e.target)) return;
-            const cb = e.target && e.target.matches && e.target.matches('input[data-action="select"]');
-            if (cb) return;
-            const row = e.target && e.target.closest ? e.target.closest('.user-item') : null;
-            if (!row) return;
-            if (e.target && e.target.closest && e.target.closest('.actions')) return;
-            const id = row.dataset.id;
-            const lat = parseFloat(row.dataset.lat);
-            const lng = parseFloat(row.dataset.lng);
-            if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
-            focusOnLocation(id, { latitude: lat, longitude: lng });
-        });
-
-        otherUsersElement.addEventListener('change', (e) => {
-            const input = e.target;
-            if (!input || !input.matches || !input.matches('input[data-action="select"]')) return;
-            const row = input.closest('.user-item');
-            if (!row) return;
-            const id = row.dataset.id;
-            const name = row.dataset.name || id;
-            const lat = parseFloat(row.dataset.lat);
-            const lng = parseFloat(row.dataset.lng);
-            if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-                input.checked = false;
-                return;
-            }
-            const loc = { latitude: lat, longitude: lng };
-            const isSelected = selectedUsers.some(s => s.id === id);
-            if (input.checked && !isSelected) handleUserSelection(id, name, loc);
-            if (!input.checked && isSelected) handleUserSelection(id, name, loc);
-        });
-
-        // Prevent "ghost taps" on mobile by avoiding list re-renders while the user is toggling checkboxes.
-        let userListInteractingUntil = 0;
-        function markUserListInteracting(ms) {
-            userListInteractingUntil = Math.max(userListInteractingUntil, Date.now() + (ms || 600));
-        }
-        // Capture pointerdown early so DOM isn't replaced before the browser dispatches the change event.
-        otherUsersElement.addEventListener('pointerdown', (e) => {
-            if (e.target && e.target.closest && e.target.closest('.actions')) {
-                markUserListInteracting(700);
-            }
-        }, true);
-
-        let otherUsersListScheduled = false;
-        function scheduleOtherUsersListUpdate() {
-            const waitMs = userListInteractingUntil - Date.now();
-            if (waitMs > 0) {
-                if (otherUsersListScheduled) return;
-                otherUsersListScheduled = true;
-                setTimeout(() => {
-                    otherUsersListScheduled = false;
-                    scheduleOtherUsersListUpdate();
-                }, waitMs + 20);
-                return;
-            }
-            if (otherUsersListScheduled) return;
-            otherUsersListScheduled = true;
-            requestAnimationFrame(() => {
-                otherUsersListScheduled = false;
-                updateOtherUsersList();
-            });
-        }
-        
-        
-        function handleUserSelection(id, name, location) {
-
-            const index = selectedUsers.findIndex(u => u.id === id);
-            
-            if (index !== -1) {
-
-                selectedUsers.splice(index, 1);
-                
-                if (id.startsWith('click-')) {
-                    const marker = otherUserMarkers.get(id);
-                    if (marker) {
-                        map.removeLayer(marker);
-                        otherUserMarkers.delete(id);
-                    }
-                }
-            } else {
-
-                if (selectedUsers.length >= 2) {
-
-                    const oldestId = selectedUsers[0].id;
-                    if (oldestId.startsWith('click-')) {
-                        const marker = otherUserMarkers.get(oldestId);
-                        if (marker) {
-                            map.removeLayer(marker);
-                            otherUserMarkers.delete(oldestId);
-                        }
-                    }
-                    
-                    selectedUsers.shift();
-                }
-                
-                selectedUsers.push({
-                    id: id,
-                    name: name,
-                    location: location
-                });
-            }
-            
-            scheduleOtherUsersListUpdate();
-            const shouldFit = (selectedUsers.length === 2);
-            updateDistanceBetweenSelectedUsers(shouldFit);
-        }
-        
-        
-        function clearSelectedUsers() {
-
-            selectedUsers.forEach(user => {
-                if (user.id.startsWith('click-')) {
-                    const marker = otherUserMarkers.get(user.id);
-                    if (marker) {
-                        map.removeLayer(marker);
-                        otherUserMarkers.delete(user.id);
-                    }
-                }
-            });
-            
-            selectedUsers = [];
-            
-            if (distanceLine) {
-                map.removeLayer(distanceLine);
-                distanceLine = null;
-            }
-            
-            if (distanceLabel) {
-                map.removeLayer(distanceLabel);
-                distanceLabel = null;
-            }
-            
-            distanceDisplay.classList.remove('active');
-            
-            scheduleOtherUsersListUpdate();
-        }
-        
-        
-        function updateDistanceBetweenSelectedUsers(shouldFitMap) {
-
-            if (distanceLine) {
-                map.removeLayer(distanceLine);
-                distanceLine = null;
-            }
-            
-            if (distanceLabel) {
-                map.removeLayer(distanceLabel);
-                distanceLabel = null;
-            }
-            
-            distanceDisplay.classList.remove('active');
-            
-            if (selectedUsers.length !== 2) return;
-            
-            const user1 = selectedUsers[0];
-            const user2 = selectedUsers[1];
-            
-            user1NameElement.textContent = user1.name;
-            user2NameElement.textContent = user2.name;
-            
-            const distance = calculateDistance(
-                user1.location.latitude,
-                user1.location.longitude,
-                user2.location.latitude,
-                user2.location.longitude
-            );
-            
-            userDistanceElement.textContent = Math.round(distance) + ' m';
-            distanceDisplay.classList.add('active');
-            
-            distanceLine = L.polyline([
-                [user1.location.latitude, user1.location.longitude],
-                [user2.location.latitude, user2.location.longitude]
-            ], {
-                color: '#FF5722',
-                weight: 3,
-                opacity: 0.7,
-                dashArray: '5, 10'
-            }).addTo(map);
-            
-            const midpoint = [
-                (user1.location.latitude + user2.location.latitude) / 2,
-                (user1.location.longitude + user2.location.longitude) / 2
-            ];
-            
-            const labelIcon = L.divIcon({
-                className: 'distance-label',
-                html: `<div style="background: white; padding: 3px 8px; border-radius: 3px; font-size: 12px; box-shadow: 0 0 3px rgba(0,0,0,0.3);">${Math.round(distance)} m</div>`,
-                iconSize: [80, 20],
-                iconAnchor: [40, 10]
-            });
-            
-            distanceLabel = L.marker(midpoint, { icon: labelIcon }).addTo(map);
-            
-            if (shouldFitMap) {
-            const bounds = L.latLngBounds(
-                [user1.location.latitude, user1.location.longitude],
-                [user2.location.latitude, user2.location.longitude]
-            );
-                // Avoid "shaking" during live updates: fit once on selection (no animation).
-                map.fitBounds(bounds, { padding: [50, 50], animate: false });
-            }
-        }
-        
-        
-        
-        function createOrUpdateUserMarker(user) {
-            const userLatLng = [user.latitude, user.longitude];
-            
-            let userMarker = otherUserMarkers.get(user.socketId);
-            const sosActive = !!(user.sos && user.sos.active);
-            const autoEnabled = !!(user.autoSos && user.autoSos.enabled);
-            const isOffline = (user.online === false);
-            const markerColor = sosActive ? '#F44336' : (isOffline ? '#9E9E9E' : (autoEnabled ? '#2196F3' : '#FF5722'));
-            const markerText = sosActive ? '' : (autoEnabled ? 'A' : '');
-            
-            if (!userMarker) {
-
-                userMarker = L.marker(userLatLng, {
-                    icon: createMapIcon(markerColor, markerText, { pulse: sosActive })
-                }).addTo(map);
-                
-                otherUserMarkers.set(user.socketId, userMarker);
-            } else {
-
-                userMarker.setLatLng(userLatLng);
-                userMarker.setIcon(createMapIcon(markerColor, markerText, { pulse: sosActive }));
-            }
-            
-            userMarker.bindPopup(`
-                <div class="user-popup">
-                    <h4>${user.username}</h4>
-                    <p>Status: ${isOffline ? 'Offline' : 'Online'}</p>
-                    <p>Lat: ${formatCoordinate(user.latitude)}</p>
-                    <p>Lng: ${formatCoordinate(user.longitude)}</p>
-                    <p>Speed: ${user.speed || '0'} km/h</p>
-                    <p>Updated: ${user.formattedTime || formatTimestamp(user.lastUpdate)}</p>
-                    <p>Battery: ${typeof user.batteryPct === 'number' ? user.batteryPct + '%' : '-'}</p>
-                    <p>Device: ${user.deviceType || '-'}</p>
-                    <p>Connection: ${user.connectionQuality || '-'}</p>
-                    <p>Last seen: ${user.lastUpdate ? formatTimestamp(user.lastUpdate) : '-'}</p>
-                    ${user.sos && user.sos.active ? `<p style="color:#F44336; font-weight:700;">SOS: ${user.sos.reason || 'SOS'}</p>` : ``}
-                </div>
-            `);
-            userMarker.on('mouseover', () => userMarker.openPopup());
-            userMarker.on('mouseout', () => userMarker.closePopup());
-        }
-        
-        
-        
-        socket.on('connect', () => {
-            mySocketId = socket.id;
-            if (DEBUG) console.log('Connected to server with ID:', mySocketId);
-
-            myUsername = AUTH_USERNAME || ("User-" + Math.floor(Math.random() * 10000));
-            if (usernameInput) usernameInput.value = myUsername;
-            socket.emit('updateUsername', myUsername);
-            scheduleOtherUsersListUpdate();
-            pushProfile();
-            refreshAdminTargetOptions();
-            populateAdminControlsFromTarget();
-        });
-
-        socket.on('sosUpdate', (s) => {
-            if (!s) return;
-            const isMe = s.socketId === mySocketId;
-            const isGeofence = s.type === 'geofence';
-            // Geofence stays admin/owner only.
-            if (isGeofence && !IS_ADMIN && !isMe) return;
-
-            const ackList = (IS_ADMIN || isMe) && Array.isArray(s.acks) ? s.acks.map(a => a.by).filter(Boolean) : [];
-            const ackCount = typeof s.ackCount === 'number' ? s.ackCount : ackList.length;
-            const ackText = (IS_ADMIN || isMe)
-                ? (ackList.length ? `Acknowledged by ${ackList.join(', ')}` : 'Not acknowledged')
-                : (ackCount ? `Acknowledged (${ackCount})` : 'Not acknowledged');
-
-            if (isMe) {
-                sosBtn.dataset.active = s.active ? '1' : '0';
-                sosBtn.textContent = s.active ? 'Cancel SOS' : 'SOS';
-                if (s.active && s.token) {
-                    const link = `${window.location.origin}/watch/${s.token}`;
-                    setBanner('sos', `Your SOS is active: ${s.reason || 'SOS'}`, [
-                        { label: 'Copy watch link', kind: 'btn-muted', onClick: async () => { try { await navigator.clipboard.writeText(link); } catch(_) {} } }
-                    ]);
-                    // Owner should only get a small, non-looping alert (no long alarm).
-                    const justActivated = !lastOwnSosActive && !!s.active;
-                    lastOwnSosActive = true;
-                    if (justActivated) playAlarmOnce();
-                    // If someone acknowledged, stop any lingering alarm loop (defensive).
-                    if (ackCount > 0) stopAlarmLoop();
-                    showAlert('SOS ACTIVE', `${s.reason || 'SOS'} • ${ackText}`, [
-                        { label: 'Close', kind: 'btn-muted', onClick: hideAlert }
-                    ], 0);
-                } else if (!s.active) {
-                    setBanner(null, null, null);
-                    hideAlert();
-                    lastOwnSosActive = false;
-                }
-            } else if (s.active) {
-                const from = otherUsers.get(s.socketId)?.username || s.socketId;
-                const msg = `${s.type === 'geofence' ? 'GEOFENCE BREACH' : 'SOS'} from ${from}: ${s.reason || 'SOS'} • ${ackText}`;
-                setBanner('sos', msg, [
-                    { label: 'Acknowledge', kind: 'btn-primary', onClick: () => { silencedSos.add(s.socketId); socket.emit('ackSOS', { socketId: s.socketId }); hideAlert(); stopAlarmLoop(); } },
-                    { label: 'Dismiss', kind: 'btn-muted', onClick: () => setBanner(null, null, null) }
-                ]);
-                // Strong alert for manual SOS + auto rules; geofence breach = strong alert for admin only (handled by filter above)
-                const alarmMs = s.type === 'geofence' ? 7000 : (s.type === 'auto' ? 7000 : 10000);
-                const shouldAlarm = !silencedSos.has(s.socketId) && ackCount === 0;
-                showAlert(s.type === 'geofence' ? 'GEOFENCE BREACH' : 'SOS ALERT', msg, [
-                    { label: 'Acknowledge', kind: 'btn-primary', onClick: () => { silencedSos.add(s.socketId); socket.emit('ackSOS', { socketId: s.socketId }); hideAlert(); stopAlarmLoop(); } },
-                    { label: 'Dismiss', kind: 'btn-muted', onClick: hideAlert }
-                ], shouldAlarm ? alarmMs : 0);
-            }
-        });
-
-        socket.on('checkInRequest', () => {
-            showAlert('CHECK-IN REQUIRED', 'Tap “I’m OK” to confirm you are safe. If you don’t, admin will be alerted.', [
-                { label: "I'm OK", kind: 'btn-primary', onClick: () => { imOkBtn.click(); hideAlert(); } },
-                { label: 'Later', kind: 'btn-muted', onClick: hideAlert }
-            ], 5000);
-            setBanner('info', 'Check-in requested. Tap “I’m OK”.', [
-                { label: "I'm OK", kind: 'btn-primary', onClick: () => imOkBtn.click() }
-            ]);
-        });
-
-        socket.on('checkInMissed', (p) => {
-            if (!p || p.socketId === mySocketId) return;
-            setBanner('sos', `Missed check-in: ${p.username || p.socketId}`, [
-                { label: 'Acknowledge SOS', kind: 'btn-primary', onClick: () => socket.emit('ackSOS', { socketId: p.socketId }) }
-            ]);
-        });
-        
-        
-        socket.on('existingUsers', (users) => {
-            if (DEBUG) console.log('Received existing users:', users);
-            
-            users.forEach(user => {
-                if (user.socketId === mySocketId) {
-                    if (keep48Toggle && user.retention) keep48Toggle.checked = (user.retention.mode === '48h');
-                    return;
-                }
-                if (user.socketId !== mySocketId) {
-                    otherUsers.set(user.socketId, user);
-                    
-                    if (user.latitude && user.longitude) {
-                        createOrUpdateUserMarker(user);
-                    }
-                    upsertGeofenceCircle(user);
-                }
-            });
-            
-            scheduleOtherUsersListUpdate();
-            refreshAdminTargetOptions();
-            populateAdminControlsFromTarget();
-        });
-        
-        
-        socket.on('userConnected', (user) => {
-            if (DEBUG) console.log('New user connected:', user);
-            
-            if (user.socketId !== mySocketId) {
-                otherUsers.set(user.socketId, user);
-                scheduleOtherUsersListUpdate();
-                refreshAdminTargetOptions();
-            }
-        });
-        
-        
-        socket.on('userUpdate', (user) => {
-            if (DEBUG) console.log('User updated:', user);
-            
-            if (user.socketId === mySocketId) {
-                if (keep48Toggle && user.retention) keep48Toggle.checked = (user.retention.mode === '48h');
-                return;
-            }
-            if (user.socketId !== mySocketId) {
-                otherUsers.set(user.socketId, user);
-                
-                if (user.latitude && user.longitude) {
-                    createOrUpdateUserMarker(user);
-                }
-                upsertGeofenceCircle(user);
-                
-                scheduleOtherUsersListUpdate();
-                refreshAdminTargetOptions();
-                
-                const selectedIndex = selectedUsers.findIndex(u => u.id === user.socketId);
-                if (selectedIndex !== -1) {
-
-                    selectedUsers[selectedIndex].location = {
-                        latitude: user.latitude,
-                        longitude: user.longitude
-                    };
-                    
-                    updateDistanceBetweenSelectedUsers(false);
-                }
-            }
-        });
-        
-        
-        socket.on('userDisconnect', (socketId) => {
-            if (DEBUG) console.log('User disconnected:', socketId);
-            
-            otherUsers.delete(socketId);
-            
-            const marker = otherUserMarkers.get(socketId);
-            if (marker) {
-                map.removeLayer(marker);
-                otherUserMarkers.delete(socketId);
-            }
-            
-            const circle = geofenceCircles.get(socketId);
-            if (circle) {
-                map.removeLayer(circle);
-                geofenceCircles.delete(socketId);
-            }
-
-            const selectedIndex = selectedUsers.findIndex(u => u.id === socketId);
-            if (selectedIndex !== -1) {
-                selectedUsers.splice(selectedIndex, 1);
-                updateDistanceBetweenSelectedUsers(false);
-            }
-            
-            scheduleOtherUsersListUpdate();
-            refreshAdminTargetOptions();
-        });
-
-        socket.on('userOffline', (user) => {
-            if (!user || user.socketId === mySocketId) return;
-            otherUsers.set(user.socketId, user);
-            if (user.latitude && user.longitude) {
-                createOrUpdateUserMarker(user);
-            }
-            upsertGeofenceCircle(user);
-            scheduleOtherUsersListUpdate();
-            refreshAdminTargetOptions();
-        });
-        
-        if (!navigator.geolocation) {
-            alert('Geolocation is not supported by your browser');
-            trackButton.disabled = true;
-        }
-        
-        navigator.geolocation.getCurrentPosition(
-            (position) => {
-                map.setView([position.coords.latitude, position.coords.longitude], 16);
-            },
-            (error) => {
-
-                console.log('Could not get initial location:', error.message);
-
-                if (error.code === error.PERMISSION_DENIED) {
-                    alert('Location access denied. Please enable location permissions in your browser settings.');
-                }
-            },
-            { 
-                enableHighAccuracy: true,
-                timeout: 10000,
-                maximumAge: 30000
-            }
-        );
-    </script>
+    <script src="/js/app.js"></script>
 </body>
 </html>

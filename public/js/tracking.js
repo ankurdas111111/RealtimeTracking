@@ -6,25 +6,32 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
 
     const R = 6371e3; 
 
-    const φ1 = lat1 * Math.PI/180;
-    const φ2 = lat2 * Math.PI/180;
-    const Δφ = (lat2-lat1) * Math.PI/180;
-    const Δλ = (lon2-lon1) * Math.PI/180;
+    const p1 = lat1 * Math.PI/180;
+    const p2 = lat2 * Math.PI/180;
+    const dp = (lat2-lat1) * Math.PI/180;
+    const dl = (lon2-lon1) * Math.PI/180;
 
-    const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
-              Math.cos(φ1) * Math.cos(φ2) *
-              Math.sin(Δλ/2) * Math.sin(Δλ/2);
+    const a = Math.sin(dp/2) * Math.sin(dp/2) +
+              Math.cos(p1) * Math.cos(p2) *
+              Math.sin(dl/2) * Math.sin(dl/2);
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
 
     return R * c;
 }
 
+function escapeAttr(str) {
+    if (typeof str !== 'string') str = String(str == null ? '' : str);
+    return str.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
 function createMapIcon(color, text, options) {
     const opts = options || {};
     const pulseClass = opts.pulse ? ' pulse' : '';
+    const safeColor = escapeAttr(color);
+    const safeText = escapeAttr(text || '');
     return L.divIcon({
         className: 'custom-map-icon',
-        html: `<div class="dot${pulseClass}" style="background-color: ${color};">${text || ''}</div>`,
+        html: '<div class="dot' + pulseClass + '" style="background-color: ' + safeColor + ';">' + safeText + '</div>',
         iconSize: [16, 16],
         iconAnchor: [8, 8]
     });

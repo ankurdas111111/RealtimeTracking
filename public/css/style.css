@@ -128,11 +128,41 @@ html, body {
     backdrop-filter: blur(10px);
 }
 
-.admin-fab {
+/* sharing panel */
+.sharing-panel {
     position: fixed;
-    bottom: calc(10px + env(safe-area-inset-bottom) + 84px);
+    top: calc(86px + env(safe-area-inset-top));
     right: 10px;
-    z-index: 1300;
+    z-index: 1950;
+    background: var(--card2);
+    padding: 12px;
+    border-radius: 16px;
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow);
+    backdrop-filter: blur(10px);
+    width: min(380px, calc(100vw - 20px));
+    max-height: calc(100dvh - (86px + env(safe-area-inset-top)) - (96px + env(safe-area-inset-bottom)));
+    overflow: auto;
+    overscroll-behavior: contain;
+}
+
+.sharing-panel .btn.btn-muted {
+    background: rgba(0,0,0,0.08);
+    color: #111;
+    border: 1px solid rgba(0,0,0,0.15);
+}
+
+.sharing-panel .btn.btn-muted:hover {
+    background: rgba(0,0,0,0.12);
+}
+
+@media (max-width: 760px) {
+    .sharing-panel {
+        left: 10px;
+        right: 10px;
+        width: auto;
+        z-index: 3000;
+    }
 }
 
 .status-banner.active {
@@ -455,10 +485,6 @@ html, body {
 @media (max-width: 600px) {
     .status-banner {
         top: calc(132px + env(safe-area-inset-top));
-    }
-
-    .admin-fab {
-        bottom: calc(10px + env(safe-area-inset-bottom) + 160px);
     }
 
     .leaflet-popup-content p {

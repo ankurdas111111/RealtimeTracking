@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#2563eb">
-  <title>Login - Real-time Tracker</title>
+  <title>Register - Real-time Tracker</title>
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/css/style.css">
   <style>
@@ -65,6 +65,10 @@
       border-color: rgba(37, 99, 235, 0.4);
       box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.10);
     }
+    .field .hint {
+      font-size: 11px;
+      color: #94a3b8;
+    }
     .err {
       background: rgba(239,68,68,0.08);
       color: #dc2626;
@@ -101,27 +105,96 @@
       font-weight: 600;
     }
     .auth-link a:hover { text-decoration: underline; }
+    .contact-toggle {
+      display: flex;
+      gap: 0;
+      border: 1px solid rgba(15,23,42,0.14);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    .toggle-btn {
+      flex: 1;
+      padding: 10px 0;
+      border: none;
+      background: rgba(255,255,255,0.9);
+      color: #64748b;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+    }
+    .toggle-btn.active {
+      background: linear-gradient(180deg, rgba(37,99,235,0.98), rgba(29,78,216,0.98));
+      color: #fff;
+    }
+    .toggle-btn:not(.active):hover {
+      background: rgba(37,99,235,0.06);
+    }
   </style>
 </head>
 <body>
   <noscript><div style="padding:2rem;text-align:center;"><h2>JavaScript Required</h2><p>Please enable JavaScript.</p></div></noscript>
   <div class="auth-card">
-    <h2>Welcome back</h2>
-    <p class="subtitle">Sign in to your tracking account</p>
+    <h2>Create account</h2>
+    <p class="subtitle">Sign up to start tracking and sharing</p>
     <% if (error) { %><div class="err"><%= error %></div><% } %>
-    <form method="POST" action="/login">
+    <form method="POST" action="/register">
       <input type="hidden" name="_csrf" value="<%= typeof csrfToken !== 'undefined' ? csrfToken : '' %>">
+      <input type="hidden" name="contact_type" id="contactType" value="email">
       <div class="field">
         <label for="username">Username</label>
         <input id="username" name="username" autocomplete="username" required autofocus />
+        <span class="hint">3-20 chars, lowercase letters, numbers, underscores</span>
       </div>
       <div class="field">
         <label for="password">Password</label>
-        <input id="password" name="password" type="password" autocomplete="current-password" required />
+        <input id="password" name="password" type="password" autocomplete="new-password" required />
+        <span class="hint">Minimum 8 characters</span>
       </div>
-      <button class="auth-btn" type="submit" aria-label="Sign in">Sign in</button>
+      <div class="field">
+        <label for="confirm">Confirm password</label>
+        <input id="confirm" name="confirm" type="password" autocomplete="new-password" required />
+      </div>
+      <div class="field">
+        <label style="font-size:13px; font-weight:600; color:#334155; margin-bottom:4px;">Contact method</label>
+        <div class="contact-toggle">
+          <button type="button" class="toggle-btn active" id="toggleEmail" aria-label="Use email">Email</button>
+          <button type="button" class="toggle-btn" id="toggleMobile" aria-label="Use mobile number">Mobile</button>
+        </div>
+      </div>
+      <div class="field" id="contactField">
+        <label for="contact_value" id="contactLabel">Email address</label>
+        <input id="contact_value" name="contact_value" type="email" autocomplete="email" placeholder="you@example.com" required />
+        <span class="hint" id="contactHint">Used by others to find and add you as a contact</span>
+      </div>
+      <button class="auth-btn" type="submit" aria-label="Create account">Create account</button>
     </form>
-    <p class="auth-link">Don't have an account? <a href="/register">Create one</a></p>
+    <script>
+    (function() {
+      var emailBtn = document.getElementById('toggleEmail');
+      var mobileBtn = document.getElementById('toggleMobile');
+      var contactType = document.getElementById('contactType');
+      var contactInput = document.getElementById('contact_value');
+      var contactLabel = document.getElementById('contactLabel');
+      function setEmail() {
+        emailBtn.classList.add('active'); mobileBtn.classList.remove('active');
+        contactType.value = 'email';
+        contactInput.type = 'email'; contactInput.autocomplete = 'email';
+        contactInput.placeholder = 'you@example.com';
+        contactLabel.textContent = 'Email address';
+      }
+      function setMobile() {
+        mobileBtn.classList.add('active'); emailBtn.classList.remove('active');
+        contactType.value = 'mobile';
+        contactInput.type = 'tel'; contactInput.autocomplete = 'tel';
+        contactInput.placeholder = '+1234567890';
+        contactLabel.textContent = 'Mobile number';
+      }
+      emailBtn.addEventListener('click', setEmail);
+      mobileBtn.addEventListener('click', setMobile);
+    })();
+    </script>
+    <p class="auth-link">Already have an account? <a href="/login">Sign in</a></p>
   </div>
 </body>
 </html>
