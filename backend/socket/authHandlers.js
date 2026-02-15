@@ -221,19 +221,16 @@ function register(socket, safe, userId, role, displayName) {
         if (mc.has(targetUserId)) { socket.emit("contactError", { message: "Already in your contacts" }); return; }
         mc.add(targetUserId);
         visibility.invalidateVisibility(user.userId);
+        visibility.invalidateVisibility(targetUserId);
         db.addContact(user.userId, targetUserId).catch(function(e) { log.error({ err: e.message }, "Failed to persist contact add"); });
         socket.emit("contactAdded", { userId: targetUserId, displayName: emitters.getDisplayName(targetUserId) });
         emitters.emitMyContacts(socket, user.userId);
         visibility.sendVisibilityRefreshIfChanged(socket, user);
-        // Notify the other user so they see us if they already have us in contacts
-        var theirContacts = cache.contacts.get(targetUserId);
-        if (theirContacts && theirContacts.has(user.userId)) {
-            visibility.invalidateVisibility(targetUserId);
-            var targetSocket = emitters.findSocketByUserId(targetUserId);
-            if (targetSocket) {
-                var targetUser = cache.activeUsers.get(targetSocket.id);
-                if (targetUser) visibility.sendVisibilityRefreshIfChanged(targetSocket, targetUser);
-            }
+        // Notify the target user — they can now see us (reverse contact visibility)
+        var targetSocket = emitters.findSocketByUserId(targetUserId);
+        if (targetSocket) {
+            var targetUser = cache.activeUsers.get(targetSocket.id);
+            if (targetUser) visibility.sendVisibilityRefreshIfChanged(targetSocket, targetUser);
         }
     }));
 
@@ -247,19 +244,16 @@ function register(socket, safe, userId, role, displayName) {
         if (!mc || !mc.has(targetUserId)) return;
         mc.delete(targetUserId);
         visibility.invalidateVisibility(user.userId);
+        visibility.invalidateVisibility(targetUserId);
         db.removeContact(user.userId, targetUserId).catch(function(e) { log.error({ err: e.message }, "Failed to persist contact remove"); });
         socket.emit("contactRemoved", { userId: targetUserId });
         emitters.emitMyContacts(socket, user.userId);
         visibility.sendVisibilityRefreshIfChanged(socket, user);
-        // Notify the other user so their map/list updates too
-        var theirContacts2 = cache.contacts.get(targetUserId);
-        if (theirContacts2 && theirContacts2.has(user.userId)) {
-            visibility.invalidateVisibility(targetUserId);
-            var targetSocket2 = emitters.findSocketByUserId(targetUserId);
-            if (targetSocket2) {
-                var targetUser2 = cache.activeUsers.get(targetSocket2.id);
-                if (targetUser2) visibility.sendVisibilityRefreshIfChanged(targetSocket2, targetUser2);
-            }
+        // Notify the target user — they can no longer see us
+        var targetSocket2 = emitters.findSocketByUserId(targetUserId);
+        if (targetSocket2) {
+            var targetUser2 = cache.activeUsers.get(targetSocket2.id);
+            if (targetUser2) visibility.sendVisibilityRefreshIfChanged(targetSocket2, targetUser2);
         }
     }));
 

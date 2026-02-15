@@ -7,13 +7,16 @@ function invalidateVisibilityAll() { cache.visibilityCache.clear(); }
 function getVisibleSet(userId) {
     if (cache.visibilityCache.has(userId)) return cache.visibilityCache.get(userId);
     var visible = new Set([userId]);
+    // Room members: see everyone in shared rooms
     for (var [, room] of cache.rooms) {
         if (room.members.has(userId)) {
             for (var member of room.members) visible.add(member);
         }
     }
-    var userContacts = cache.contacts.get(userId);
-    if (userContacts) { for (var c of userContacts) visible.add(c); }
+    // You see people who added YOU as a contact (they shared their location with you)
+    for (var entry of cache.contacts) {
+        if (entry[1].has(userId)) visible.add(entry[0]);
+    }
     cache.visibilityCache.set(userId, visible);
     return visible;
 }
