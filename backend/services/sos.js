@@ -47,20 +47,58 @@ function emitSosUpdate(user) {
     var full = publicSos(user);
     if (full.type === "geofence") {
         _io.to(full.socketId).emit("sosUpdate", full);
+        var geoPublic = { ...full, acks: [], ackBy: null };
+        var geoEmitted = new Set();
+        // Send to all contacts
+        var geoContacts = cache.contacts.get(user.userId);
+        if (geoContacts) {
+            for (var gcid of geoContacts) {
+                var gsid = cache.userIdToSocketId.get(gcid);
+                if (!gsid || gsid === user.socketId) continue;
+                var gv = cache.activeUsers.get(gsid);
+                if (!gv) continue;
+                geoEmitted.add(gsid);
+                if (gv.role === "admin") _io.to(gsid).emit("sosUpdate", full);
+                else _io.to(gsid).emit("sosUpdate", geoPublic);
+            }
+        }
+        // Send to admins not already notified
         for (var u of cache.activeUsers.values()) {
-            if (u.role === "admin" && u.socketId !== full.socketId) _io.to(u.socketId).emit("sosUpdate", full);
+            if (u.role === "admin" && u.socketId !== full.socketId && !geoEmitted.has(u.socketId)) {
+                _io.to(u.socketId).emit("sosUpdate", full);
+            }
         }
         emitLiveSos(user);
         return;
     }
     var publicPayload = { ...full, acks: [], ackBy: null };
-    var viewers = visibility.getVisibleSockets(user);
-    for (var sid of viewers) {
-        var viewer = cache.activeUsers.get(sid);
-        if (!viewer) continue;
-        if (viewer.role === "admin") _io.to(sid).emit("sosUpdate", full);
-        else _io.to(sid).emit("sosUpdate", publicPayload);
+    var emittedSids = new Set();
+
+    // 1. Explicitly send to ALL of the sender's contacts (guaranteed delivery)
+    var contactSet = cache.contacts.get(user.userId);
+    if (contactSet) {
+        for (var contactId of contactSet) {
+            var sid = cache.userIdToSocketId.get(contactId);
+            if (!sid || sid === user.socketId) continue;
+            var viewer = cache.activeUsers.get(sid);
+            if (!viewer) continue;
+            emittedSids.add(sid);
+            if (viewer.role === "admin") _io.to(sid).emit("sosUpdate", full);
+            else _io.to(sid).emit("sosUpdate", publicPayload);
+        }
     }
+
+    // 2. Also send to anyone else in the visibility set (room members, admins, etc.)
+    var viewers = visibility.getVisibleSockets(user);
+    for (var vsid of viewers) {
+        if (emittedSids.has(vsid)) continue; // already sent
+        var vuser = cache.activeUsers.get(vsid);
+        if (!vuser) continue;
+        if (vuser.role === "admin") _io.to(vsid).emit("sosUpdate", full);
+        else _io.to(vsid).emit("sosUpdate", publicPayload);
+    }
+
+    // 3. Always send full payload to the sender themselves
     _io.to(full.socketId).emit("sosUpdate", full);
     emitLiveSos(user);
 }
@@ -71,9 +109,8 @@ function emitLiveSos(user) {
         ackCount: Array.isArray(user.sos.acks) ? user.sos.acks.length : 0,
         acks: Array.isArray(user.sos.acks) ? user.sos.acks : []
     };
-    for (var [token, ent] of cache.liveTokens) {
-        if (ent.userId === user.userId) _io.to("live:" + token).emit("liveSosUpdate", sosData);
-    }
+    var tokenSet = cache.liveTokensByUser.get(user.userId);
+    if (tokenSet) { for (var token of tokenSet) { _io.to("live:" + token).emit("liveSosUpdate", sosData); } }
 }
 
 function emitLiveCheckIn(user) {
@@ -83,9 +120,8 @@ function emitLiveCheckIn(user) {
         intervalMinutes: user.checkIn ? user.checkIn.intervalMinutes : 0,
         overdueMinutes: user.checkIn ? user.checkIn.overdueMinutes : 0
     };
-    for (var [token, ent] of cache.liveTokens) {
-        if (ent.userId === user.userId) _io.to("live:" + token).emit("liveCheckInUpdate", ciData);
-    }
+    var tokenSet = cache.liveTokensByUser.get(user.userId);
+    if (tokenSet) { for (var token of tokenSet) { _io.to("live:" + token).emit("liveCheckInUpdate", ciData); } }
 }
 
 function runAutoRules(user) {

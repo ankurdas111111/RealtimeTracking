@@ -70,6 +70,79 @@ describe("validatePosition", function() {
         var result = helpers.validatePosition({ latitude: 0, longitude: 0 });
         expect(result.speed).toBe(0);
     });
+
+    it("accepts numeric strings and normalizes them", function() {
+        var result = helpers.validatePosition({
+            latitude: "28.6139",
+            longitude: "77.2090",
+            speed: "12.5",
+            formattedTime: "12:34:56"
+        });
+        expect(result).not.toBeNull();
+        expect(result.latitude).toBeCloseTo(28.6139);
+        expect(result.longitude).toBeCloseTo(77.2090);
+        expect(result.speed).toBe(12.5);
+    });
+
+    it("sanitizes formattedTime and strips unsafe characters", function() {
+        var result = helpers.validatePosition({
+            latitude: 0,
+            longitude: 0,
+            formattedTime: "<b>12:00:00</b>"
+        });
+        expect(result.formattedTime).toBe("b12:00:00/b");
+    });
+
+    it("rejects non-finite lat/lng values", function() {
+        expect(helpers.validatePosition({ latitude: "NaN", longitude: 77 })).toBeNull();
+        expect(helpers.validatePosition({ latitude: 12, longitude: Infinity })).toBeNull();
+    });
+
+    it("accepts and validates accuracy field", function() {
+        var result = helpers.validatePosition({
+            latitude: 28.6, longitude: 77.2, accuracy: 15.5
+        });
+        expect(result.accuracy).toBeCloseTo(15.5);
+
+        // Null when not provided
+        var result2 = helpers.validatePosition({ latitude: 28.6, longitude: 77.2 });
+        expect(result2.accuracy).toBeNull();
+
+        // Rejects out-of-range accuracy
+        var result3 = helpers.validatePosition({
+            latitude: 28.6, longitude: 77.2, accuracy: -1
+        });
+        expect(result3.accuracy).toBeNull();
+
+        var result4 = helpers.validatePosition({
+            latitude: 28.6, longitude: 77.2, accuracy: 200000
+        });
+        expect(result4.accuracy).toBeNull();
+
+        // Rejects non-finite accuracy
+        var result5 = helpers.validatePosition({
+            latitude: 28.6, longitude: 77.2, accuracy: NaN
+        });
+        expect(result5.accuracy).toBeNull();
+    });
+
+    it("accepts and validates timestamp field", function() {
+        var now = Date.now();
+        var result = helpers.validatePosition({
+            latitude: 28.6, longitude: 77.2, timestamp: now
+        });
+        expect(result.timestamp).toBe(now);
+
+        // Null when not provided
+        var result2 = helpers.validatePosition({ latitude: 28.6, longitude: 77.2 });
+        expect(result2.timestamp).toBeNull();
+
+        // Rejects non-finite timestamp
+        var result3 = helpers.validatePosition({
+            latitude: 28.6, longitude: 77.2, timestamp: NaN
+        });
+        expect(result3.timestamp).toBeNull();
+    });
 });
 
 describe("haversineM", function() {

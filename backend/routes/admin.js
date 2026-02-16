@@ -10,7 +10,7 @@ var log = config.log;
 
 var router = express.Router();
 
-router.post("/admin/promote", auth.requireAuth, auth.requireAdmin, csrf.verifyCsrf, async function(req, res) {
+router.post("/api/admin/promote", auth.requireAuth, auth.requireAdmin, csrf.verifyCsrf, async function(req, res) {
     var targetUserId = (req.body.userId || "").trim();
     var newRole = req.body.role === "admin" ? "admin" : "user";
     if (!targetUserId || !cache.usersCache[targetUserId]) return res.status(404).json({ error: "User not found" });

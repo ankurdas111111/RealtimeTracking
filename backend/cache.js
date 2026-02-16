@@ -1,11 +1,13 @@
 // ── In-memory caches (loaded from PostgreSQL at startup) ────────────────────
 var usersCache = {};         // userId (UUID) → { firstName, lastName, passwordHash, role, shareCode, email, mobile, createdAt }
 var rooms = new Map();       // code → { dbId, name, members: Set<userId>, createdBy, createdAt }
+var roomMemberRoles = new Map(); // roomCode → Map<userId, { role, expiresAt }>
 var contacts = new Map();    // userId → Set<contactUserId>
 var shareCodes = new Map();  // shareCode → userId
 var liveTokens = new Map();  // token → { userId, expiresAt, createdAt }
 var emailIndex = new Map();  // email (lowercase) → userId
 var mobileIndex = new Map(); // mobile → userId
+var guardianships = new Map(); // guardianId → Map<wardId, { status, expiresAt, createdAt }>
 
 // ── Ephemeral in-memory state ───────────────────────────────────────────────
 var watchTokens = new Map();
@@ -15,6 +17,11 @@ var visibilityCache = new Map();
 var lastVisibleSets = new Map();
 var lastPositionAt = new Map();
 var lastDbSaveAt = new Map();   // userId → timestamp of last DB position save
+var pendingRequests = new Map(); // targetUserId → [{ type, from, roomCode?, expiresIn? }]
+
+// ── O(1) index maps (kept in sync with activeUsers / liveTokens) ────────────
+var userIdToSocketId = new Map();   // userId → socketId  (O(1) user lookup)
+var liveTokensByUser = new Map();   // userId → Set<token> (O(1) live-token fan-out)
 
 module.exports = {
     // Getters (return current reference)
@@ -22,6 +29,8 @@ module.exports = {
     set usersCache(v) { usersCache = v; },
     get rooms() { return rooms; },
     set rooms(v) { rooms = v; },
+    get roomMemberRoles() { return roomMemberRoles; },
+    set roomMemberRoles(v) { roomMemberRoles = v; },
     get contacts() { return contacts; },
     set contacts(v) { contacts = v; },
     get shareCodes() { return shareCodes; },
@@ -32,11 +41,16 @@ module.exports = {
     set emailIndex(v) { emailIndex = v; },
     get mobileIndex() { return mobileIndex; },
     set mobileIndex(v) { mobileIndex = v; },
+    get guardianships() { return guardianships; },
+    set guardianships(v) { guardianships = v; },
     watchTokens: watchTokens,
     activeUsers: activeUsers,
     offlineUsers: offlineUsers,
     visibilityCache: visibilityCache,
     lastVisibleSets: lastVisibleSets,
     lastPositionAt: lastPositionAt,
-    lastDbSaveAt: lastDbSaveAt
+    lastDbSaveAt: lastDbSaveAt,
+    pendingRequests: pendingRequests,
+    userIdToSocketId: userIdToSocketId,
+    liveTokensByUser: liveTokensByUser
 };

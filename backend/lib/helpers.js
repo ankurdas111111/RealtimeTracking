@@ -15,7 +15,11 @@ function validatePosition(data) {
     if (!Number.isFinite(lng) || lng < -180 || lng > 180) return null;
     var speed = Number(data.speed) || 0;
     if (speed < 0 || speed > 1000) speed = 0;
-    return { latitude: lat, longitude: lng, speed: speed, formattedTime: sanitizeString(data.formattedTime, 50) };
+    var accuracy = data.accuracy != null ? Number(data.accuracy) : null;
+    if (accuracy != null && (!Number.isFinite(accuracy) || accuracy < 0 || accuracy > 100000)) accuracy = null;
+    var timestamp = data.timestamp != null ? Number(data.timestamp) : null;
+    if (timestamp != null && !Number.isFinite(timestamp)) timestamp = null;
+    return { latitude: lat, longitude: lng, speed: speed, formattedTime: sanitizeString(data.formattedTime, 50), accuracy: accuracy, timestamp: timestamp };
 }
 
 // ── Haversine distance (metres) ─────────────────────────────────────────────
