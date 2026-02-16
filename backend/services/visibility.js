@@ -4,6 +4,24 @@ var cache = require("../cache");
 function invalidateVisibility(userId) { cache.visibilityCache.delete(userId); }
 function invalidateVisibilityAll() { cache.visibilityCache.clear(); }
 
+/**
+ * Targeted invalidation: only clears cached visibility for the given set of user IDs
+ * plus any user whose cached visible set includes one of them.
+ * Far cheaper than a full clear when a single room/contact changes.
+ */
+function invalidateVisibilityForUsers(userIds) {
+    for (var i = 0; i < userIds.length; i++) {
+        cache.visibilityCache.delete(userIds[i]);
+    }
+    // Also invalidate anyone whose cached set references one of these users
+    var affectedSet = new Set(userIds);
+    for (var [uid, visSet] of cache.visibilityCache) {
+        for (var vid of affectedSet) {
+            if (visSet.has(vid)) { cache.visibilityCache.delete(uid); break; }
+        }
+    }
+}
+
 function getVisibleSet(userId) {
     if (cache.visibilityCache.has(userId)) return cache.visibilityCache.get(userId);
     var visible = new Set([userId]);
@@ -81,15 +99,64 @@ function sendVisibilityRefreshIfChanged(socket, user) {
     sendVisibilityRefresh(socket, user);
 }
 
+// ── Batched visibility refresh ──────────────────────────────────────────────
+// Deduplicates refresh requests: if a socket is already queued, skip it.
+var _pendingVisRefresh = new Map(); // socketId → { socket, user }
+var _visRefreshScheduled = false;
+
+function scheduleVisibilityRefresh(socket, user) {
+    if (!_pendingVisRefresh.has(socket.id)) {
+        _pendingVisRefresh.set(socket.id, { socket: socket, user: user });
+    }
+    if (!_visRefreshScheduled) {
+        _visRefreshScheduled = true;
+        setImmediate(flushVisibilityRefreshes);
+    }
+}
+
+function flushVisibilityRefreshes() {
+    _visRefreshScheduled = false;
+    var batch = _pendingVisRefresh;
+    _pendingVisRefresh = new Map();
+    for (var entry of batch.values()) {
+        sendVisibilityRefreshIfChanged(entry.socket, entry.user);
+    }
+}
+
+// ── Batched position broadcasts ─────────────────────────────────────────────
+// Accumulates position updates briefly, then fans out once per tick.
+var _pendingPositions = new Map(); // socketId → { user, data }
+var _positionBatchTimer = null;
+var BATCH_INTERVAL_MS = 40;
+
+function queuePositionBroadcast(user, data) {
+    _pendingPositions.set(user.socketId, { user: user, data: data });
+    if (!_positionBatchTimer) {
+        _positionBatchTimer = setTimeout(flushPositionBroadcasts, BATCH_INTERVAL_MS);
+    }
+}
+
+function flushPositionBroadcasts() {
+    _positionBatchTimer = null;
+    var batch = _pendingPositions;
+    _pendingPositions = new Map();
+    for (var entry of batch.values()) {
+        emitToVisible(entry.user, "userUpdate", entry.data);
+    }
+}
+
 module.exports = {
     setIo: setIo,
     invalidateVisibility: invalidateVisibility,
     invalidateVisibilityAll: invalidateVisibilityAll,
+    invalidateVisibilityForUsers: invalidateVisibilityForUsers,
     getVisibleSet: getVisibleSet,
     canSee: canSee,
     getVisibleSockets: getVisibleSockets,
     emitToVisible: emitToVisible,
     emitToVisibleAndSelf: emitToVisibleAndSelf,
     sendVisibilityRefresh: sendVisibilityRefresh,
-    sendVisibilityRefreshIfChanged: sendVisibilityRefreshIfChanged
+    sendVisibilityRefreshIfChanged: sendVisibilityRefreshIfChanged,
+    scheduleVisibilityRefresh: scheduleVisibilityRefresh,
+    queuePositionBroadcast: queuePositionBroadcast
 };

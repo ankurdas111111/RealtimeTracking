@@ -2,6 +2,7 @@ var cache = require("../cache");
 var config = require("../config");
 var helpers = require("../lib/helpers");
 var emitters = require("../services/emitters");
+var permissions = require("../services/permissions");
 var sos = require("../services/sos");
 var visibility = require("../services/visibility");
 
@@ -18,7 +19,7 @@ function register(socket, safe) {
         var reason = payload && typeof payload.reason === "string" ? sanitizeString(payload.reason, 100) : "SOS";
         sos.setSos(user, true, reason, null, "manual");
         sos.emitSosUpdate(user);
-        log.warn({ userId: user.userId, reason: reason }, "SOS triggered");
+        log.warn({ userId: user.userId, reasonLength: reason.length }, "SOS triggered");
     }));
 
     socket.on("cancelSOS", safe(function() {
@@ -58,10 +59,11 @@ function register(socket, safe) {
     socket.on("setCheckInRules", safe(function(cfg) {
         if (!socketRateLimit(socket, "setCheckInRules", 10)) return;
         var actor = cache.activeUsers.get(socket.id);
-        if (!actor || !cfg || actor.role !== "admin") return;
+        if (!actor || !cfg) return;
         var targetSocketId = typeof cfg.socketId === "string" ? cfg.socketId : actor.socketId;
         var user = cache.activeUsers.get(targetSocketId);
         if (!user) return;
+        if (!permissions.canManage(actor.userId, user.userId)) return;
         user.checkIn.enabled = !!cfg.enabled;
         if (typeof cfg.intervalMinutes === "number") user.checkIn.intervalMinutes = Math.max(1, cfg.intervalMinutes);
         if (typeof cfg.overdueMinutes === "number") user.checkIn.overdueMinutes = Math.max(1, cfg.overdueMinutes);
@@ -72,10 +74,11 @@ function register(socket, safe) {
     socket.on("setGeofence", safe(function(cfg) {
         if (!socketRateLimit(socket, "setGeofence", 10)) return;
         var actor = cache.activeUsers.get(socket.id);
-        if (!actor || !cfg || actor.role !== "admin") return;
+        if (!actor || !cfg) return;
         var targetSocketId = typeof cfg.socketId === "string" ? cfg.socketId : actor.socketId;
         var user = cache.activeUsers.get(targetSocketId);
         if (!user) return;
+        if (!permissions.canManage(actor.userId, user.userId)) return;
         user.geofence.enabled = !!cfg.enabled;
         if (typeof cfg.centerLat === "number") user.geofence.centerLat = cfg.centerLat;
         if (typeof cfg.centerLng === "number") user.geofence.centerLng = cfg.centerLng;
@@ -88,10 +91,11 @@ function register(socket, safe) {
     socket.on("setAutoSos", safe(function(cfg) {
         if (!socketRateLimit(socket, "setAutoSos", 10)) return;
         var actor = cache.activeUsers.get(socket.id);
-        if (!actor || !cfg || actor.role !== "admin") return;
+        if (!actor || !cfg) return;
         var targetSocketId = typeof cfg.socketId === "string" ? cfg.socketId : actor.socketId;
         var user = cache.activeUsers.get(targetSocketId);
         if (!user) return;
+        if (!permissions.canManage(actor.userId, user.userId)) return;
         user.autoSos.enabled = !!cfg.enabled;
         if (typeof cfg.noMoveMinutes === "number") user.autoSos.noMoveMinutes = cfg.noMoveMinutes;
         if (typeof cfg.hardStopMinutes === "number") user.autoSos.hardStopMinutes = cfg.hardStopMinutes;

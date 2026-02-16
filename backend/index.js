@@ -14,6 +14,18 @@ var sessionMiddleware = appModule.sessionMiddleware;
 // ── Create Socket.IO server ─────────────────────────────────────────────────
 var io = socketModule.createSocketServer(server, sessionMiddleware);
 
+// ── Process-level error handlers ─────────────────────────────────────────────
+process.on("uncaughtException", function(err) {
+    log.fatal({ err: err.message, stack: err.stack }, "Uncaught exception -- shutting down");
+    try { db.closePool(); } catch (_) {}
+    process.exit(1);
+});
+
+process.on("unhandledRejection", function(reason) {
+    var msg = reason && reason.message ? reason.message : String(reason);
+    log.error({ err: msg }, "Unhandled promise rejection");
+});
+
 // ── Graceful shutdown ────────────────────────────────────────────────────────
 function shutdown(signal) {
     log.info({ signal: signal }, "Shutting down gracefully");
@@ -38,13 +50,27 @@ async function start() {
         cache.emailIndex = data.emailIndex;
         cache.mobileIndex = data.mobileIndex;
         cache.rooms = data.rooms;
+        cache.roomMemberRoles = data.roomMemberRoles;
         cache.contacts = data.contacts;
         cache.liveTokens = data.liveTokens;
+        cache.guardianships = data.guardianships;
+        // Merge persisted room admin requests into pendingRequests
+        if (data.roomAdminRequests) {
+            for (var [rKey, rArr] of data.roomAdminRequests) {
+                cache.pendingRequests.set(rKey, rArr);
+            }
+        }
+        // Build liveTokensByUser index from loaded tokens
+        for (var [tok, ent] of cache.liveTokens) {
+            if (!cache.liveTokensByUser.has(ent.userId)) cache.liveTokensByUser.set(ent.userId, new Set());
+            cache.liveTokensByUser.get(ent.userId).add(tok);
+        }
         log.info({
             users: Object.keys(cache.usersCache).length,
             rooms: cache.rooms.size,
             contacts: cache.contacts.size,
-            liveTokens: cache.liveTokens.size
+            liveTokens: cache.liveTokens.size,
+            guardianships: cache.guardianships.size
         }, "Data loaded from PostgreSQL");
     } catch (e) {
         log.fatal({ err: e.message }, "Failed to initialise database");

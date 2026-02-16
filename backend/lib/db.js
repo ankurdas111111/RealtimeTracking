@@ -1,5 +1,8 @@
 var pg = require("pg");
 
+var log = null;
+try { log = require("../config").log; } catch (_) { log = console; }
+
 var pool = null;
 
 // ── Schema ──────────────────────────────────────────────────────────────────
@@ -56,9 +59,23 @@ CREATE TABLE IF NOT EXISTS live_tokens (
     expires_at BIGINT,
     created_at BIGINT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS guardianships (
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    guardian_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    ward_id     UUID REFERENCES users(id) ON DELETE CASCADE,
+    status      VARCHAR(10) NOT NULL DEFAULT 'pending',
+    expires_at  BIGINT,
+    created_at  BIGINT NOT NULL,
+    UNIQUE(guardian_id, ward_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_contacts_contact_id ON contacts(contact_id);
+CREATE INDEX IF NOT EXISTS idx_live_tokens_expires ON live_tokens(expires_at) WHERE expires_at IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_guardianships_ward ON guardianships(ward_id);
 `;
 
-// ── Migration: drop old username-based tables ────────────────────────────────
+// ── Migration: drop old username-based tables (legacy only, guarded) ─────────
 var MIGRATION_SQL = `
 DROP TABLE IF EXISTS live_tokens CASCADE;
 DROP TABLE IF EXISTS contacts CASCADE;
@@ -66,6 +83,7 @@ DROP TABLE IF EXISTS room_members CASCADE;
 DROP TABLE IF EXISTS rooms CASCADE;
 DROP TABLE IF EXISTS users CASCADE;
 `;
+var MIGRATION_ENABLED = process.env.ALLOW_DESTRUCTIVE_MIGRATION === "true";
 
 // ── Pool management ─────────────────────────────────────────────────────────
 function getPool() {
@@ -80,12 +98,14 @@ function getPool() {
     pool = new pg.Pool({
         connectionString: cleanUrl,
         ssl: sslConfig,
-        max: 5, // Render free tier has limited connections
+        max: 10,
         idleTimeoutMillis: 30000,
-        connectionTimeoutMillis: 5000
+        connectionTimeoutMillis: 5000,
+        query_timeout: 10000,
+        statement_timeout: 5000
     });
     pool.on("error", function(err) {
-        console.error("Unexpected PostgreSQL pool error:", err.message);
+        log.error({ err: err.message }, "Unexpected PostgreSQL pool error");
     });
     return pool;
 }
@@ -99,10 +119,14 @@ async function initDb() {
             "SELECT column_name FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'username'"
         );
         if (colCheck.rows.length > 0) {
-            // Old schema detected -- drop app tables (not session) and recreate
+            if (!MIGRATION_ENABLED) {
+                console.error("[db] Old username-based schema detected. Set ALLOW_DESTRUCTIVE_MIGRATION=true to drop and recreate tables.");
+                throw new Error("Destructive migration required but not enabled");
+            }
             await p.query(MIGRATION_SQL);
         }
-    } catch (_) {
+    } catch (e) {
+        if (e.message === "Destructive migration required but not enabled") throw e;
         // Table may not exist yet, which is fine
     }
     await p.query(SCHEMA_SQL);
@@ -112,6 +136,34 @@ async function initDb() {
         ALTER TABLE users ADD COLUMN IF NOT EXISTS last_longitude DOUBLE PRECISION;
         ALTER TABLE users ADD COLUMN IF NOT EXISTS last_speed TEXT;
         ALTER TABLE users ADD COLUMN IF NOT EXISTS last_update BIGINT;
+    `);
+    // Migration: add role columns to room_members
+    await p.query(`
+        ALTER TABLE room_members ADD COLUMN IF NOT EXISTS role VARCHAR(10) DEFAULT 'member';
+        ALTER TABLE room_members ADD COLUMN IF NOT EXISTS role_expires_at BIGINT;
+    `);
+    // Migration: add initiated_by to guardianships
+    await p.query(`
+        ALTER TABLE guardianships ADD COLUMN IF NOT EXISTS initiated_by VARCHAR(10) DEFAULT 'guardian';
+    `);
+    // Migration: room_admin_requests table for persistent majority voting
+    await p.query(`
+        CREATE TABLE IF NOT EXISTS room_admin_requests (
+            id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            room_code   VARCHAR(6) NOT NULL,
+            user_id     UUID REFERENCES users(id) ON DELETE CASCADE,
+            expires_in  VARCHAR(10),
+            created_at  BIGINT NOT NULL,
+            UNIQUE(room_code, user_id)
+        );
+        CREATE TABLE IF NOT EXISTS room_admin_votes (
+            id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            room_code   VARCHAR(6) NOT NULL,
+            requester_id UUID REFERENCES users(id) ON DELETE CASCADE,
+            voter_id    UUID REFERENCES users(id) ON DELETE CASCADE,
+            vote        VARCHAR(10) NOT NULL,
+            UNIQUE(room_code, requester_id, voter_id)
+        );
     `);
 }
 
@@ -127,13 +179,12 @@ async function loadAll() {
     var shareCodes = new Map();
     var emailIndex = new Map();
     var mobileIndex = new Map();
-    var uRes = await p.query("SELECT id, first_name, last_name, password_hash, role, share_code, email, mobile, created_at, last_latitude, last_longitude, last_speed, last_update FROM users");
+    var uRes = await p.query("SELECT id, first_name, last_name, role, share_code, email, mobile, created_at, last_latitude, last_longitude, last_speed, last_update FROM users");
     for (var row of uRes.rows) {
         var uid = row.id;
         usersCache[uid] = {
             firstName: row.first_name || "",
             lastName: row.last_name || "",
-            passwordHash: row.password_hash,
             role: row.role,
             shareCode: row.share_code,
             email: row.email || null,
@@ -161,10 +212,16 @@ async function loadAll() {
             createdAt: Number(rr.created_at)
         });
     }
-    var mRes = await p.query("SELECT rm.room_id, rm.user_id, r.code FROM room_members rm JOIN rooms r ON r.id = rm.room_id");
+    var roomMemberRoles = new Map();
+    var mRes = await p.query("SELECT rm.room_id, rm.user_id, rm.role, rm.role_expires_at, r.code FROM room_members rm JOIN rooms r ON r.id = rm.room_id");
     for (var mr of mRes.rows) {
         var room = roomsMap.get(mr.code);
         if (room) room.members.add(mr.user_id);
+        if (!roomMemberRoles.has(mr.code)) roomMemberRoles.set(mr.code, new Map());
+        roomMemberRoles.get(mr.code).set(mr.user_id, {
+            role: mr.role || "member",
+            expiresAt: mr.role_expires_at ? Number(mr.role_expires_at) : null
+        });
     }
     // Clean up rooms with 0 members (orphaned)
     for (var [code, rm] of roomsMap) {
@@ -195,14 +252,53 @@ async function loadAll() {
     // Clean expired from DB
     await p.query("DELETE FROM live_tokens WHERE expires_at IS NOT NULL AND expires_at <= $1", [now]);
 
+    // Guardianships
+    var guardianshipsMap = new Map();
+    var gRes = await p.query("SELECT guardian_id, ward_id, status, expires_at, created_at, initiated_by FROM guardianships WHERE status IN ('pending', 'active')");
+    for (var gr of gRes.rows) {
+        if (!guardianshipsMap.has(gr.guardian_id)) guardianshipsMap.set(gr.guardian_id, new Map());
+        guardianshipsMap.get(gr.guardian_id).set(gr.ward_id, {
+            status: gr.status,
+            expiresAt: gr.expires_at ? Number(gr.expires_at) : null,
+            createdAt: Number(gr.created_at),
+            initiatedBy: gr.initiated_by || "guardian"
+        });
+    }
+
+    // Room admin requests + votes
+    var roomAdminRequests = new Map();
+    var raRes = await p.query("SELECT room_code, user_id, expires_in, created_at FROM room_admin_requests");
+    for (var ra of raRes.rows) {
+        var key = ra.room_code + ":roomAdmin";
+        if (!roomAdminRequests.has(key)) roomAdminRequests.set(key, []);
+        roomAdminRequests.get(key).push({
+            type: "roomAdmin", from: ra.user_id, roomCode: ra.room_code,
+            expiresIn: ra.expires_in || null, createdAt: Number(ra.created_at),
+            approvals: new Set(), denials: new Set()
+        });
+    }
+    var vRes = await p.query("SELECT room_code, requester_id, voter_id, vote FROM room_admin_votes");
+    for (var vr of vRes.rows) {
+        var vKey = vr.room_code + ":roomAdmin";
+        var reqs = roomAdminRequests.get(vKey) || [];
+        var found = reqs.find(function(r) { return r.from === vr.requester_id; });
+        if (found) {
+            if (vr.vote === "approve") found.approvals.add(vr.voter_id);
+            else if (vr.vote === "deny") found.denials.add(vr.voter_id);
+        }
+    }
+
     return {
         usersCache: usersCache,
         shareCodes: shareCodes,
         emailIndex: emailIndex,
         mobileIndex: mobileIndex,
         rooms: roomsMap,
+        roomMemberRoles: roomMemberRoles,
         contacts: contactsMap,
-        liveTokens: liveTokensMap
+        liveTokens: liveTokensMap,
+        guardianships: guardianshipsMap,
+        roomAdminRequests: roomAdminRequests
     };
 }
 
@@ -219,36 +315,49 @@ async function updateUserRole(userId, newRole) {
     await getPool().query("UPDATE users SET role = $1 WHERE id = $2", [newRole, userId]);
 }
 
+async function getUserPasswordHash(userId) {
+    var res = await getPool().query({
+        name: "get-user-password-hash",
+        text: "SELECT password_hash FROM users WHERE id = $1",
+        values: [userId]
+    });
+    return res.rows.length > 0 ? res.rows[0].password_hash : null;
+}
+
 async function findUserByContact(value) {
-    var res = await getPool().query(
-        "SELECT id FROM users WHERE email = $1 OR mobile = $1 LIMIT 1",
-        [value]
-    );
+    var res = await getPool().query({
+        name: "find-user-by-contact",
+        text: "SELECT id FROM users WHERE email = $1 OR mobile = $1 LIMIT 1",
+        values: [value]
+    });
     return res.rows.length > 0 ? res.rows[0].id : null;
 }
 
 async function findUserByEmail(email) {
-    var res = await getPool().query(
-        "SELECT id FROM users WHERE email = $1 LIMIT 1",
-        [email]
-    );
+    var res = await getPool().query({
+        name: "find-user-by-email",
+        text: "SELECT id FROM users WHERE email = $1 LIMIT 1",
+        values: [email]
+    });
     return res.rows.length > 0 ? res.rows[0].id : null;
 }
 
 async function findUserByMobile(mobile) {
-    var res = await getPool().query(
-        "SELECT id FROM users WHERE mobile = $1 LIMIT 1",
-        [mobile]
-    );
+    var res = await getPool().query({
+        name: "find-user-by-mobile",
+        text: "SELECT id FROM users WHERE mobile = $1 LIMIT 1",
+        values: [mobile]
+    });
     return res.rows.length > 0 ? res.rows[0].id : null;
 }
 
 // ── Location persistence ─────────────────────────────────────────────────────
 async function updateUserLocation(userId, lat, lng, speed, timestamp) {
-    await getPool().query(
-        "UPDATE users SET last_latitude=$1, last_longitude=$2, last_speed=$3, last_update=$4 WHERE id=$5",
-        [lat, lng, speed, timestamp, userId]
-    );
+    await getPool().query({
+        name: "update-user-location",
+        text: "UPDATE users SET last_latitude=$1, last_longitude=$2, last_speed=$3, last_update=$4 WHERE id=$5",
+        values: [lat, lng, speed, timestamp, userId]
+    });
 }
 
 // ── Room CRUD ───────────────────────────────────────────────────────────────
@@ -260,18 +369,20 @@ async function createRoom(code, name, createdByUserId, createdAt) {
     return res.rows[0].id; // return the generated room UUID
 }
 
-async function addRoomMember(roomId, userId) {
-    await getPool().query(
-        "INSERT INTO room_members (room_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING",
-        [roomId, userId]
-    );
+async function addRoomMember(roomId, userId, role) {
+    await getPool().query({
+        name: "add-room-member",
+        text: "INSERT INTO room_members (room_id, user_id, role) VALUES ($1, $2, $3) ON CONFLICT (room_id, user_id) DO NOTHING",
+        values: [roomId, userId, role || "member"]
+    });
 }
 
 async function removeRoomMember(roomId, userId) {
-    await getPool().query(
-        "DELETE FROM room_members WHERE room_id = $1 AND user_id = $2",
-        [roomId, userId]
-    );
+    await getPool().query({
+        name: "remove-room-member",
+        text: "DELETE FROM room_members WHERE room_id = $1 AND user_id = $2",
+        values: [roomId, userId]
+    });
 }
 
 async function deleteRoom(roomId) {
@@ -280,17 +391,49 @@ async function deleteRoom(roomId) {
 
 // ── Contact CRUD ────────────────────────────────────────────────────────────
 async function addContact(ownerId, contactId) {
-    await getPool().query(
-        "INSERT INTO contacts (owner_id, contact_id) VALUES ($1, $2) ON CONFLICT DO NOTHING",
-        [ownerId, contactId]
-    );
+    await getPool().query({
+        name: "add-contact",
+        text: "INSERT INTO contacts (owner_id, contact_id) VALUES ($1, $2) ON CONFLICT DO NOTHING",
+        values: [ownerId, contactId]
+    });
+}
+
+async function addContactBidirectional(userA, userB) {
+    var client = await getPool().connect();
+    try {
+        await client.query("BEGIN");
+        await client.query("INSERT INTO contacts (owner_id, contact_id) VALUES ($1, $2) ON CONFLICT DO NOTHING", [userA, userB]);
+        await client.query("INSERT INTO contacts (owner_id, contact_id) VALUES ($1, $2) ON CONFLICT DO NOTHING", [userB, userA]);
+        await client.query("COMMIT");
+    } catch (e) {
+        await client.query("ROLLBACK");
+        throw e;
+    } finally {
+        client.release();
+    }
 }
 
 async function removeContact(ownerId, contactId) {
-    await getPool().query(
-        "DELETE FROM contacts WHERE owner_id = $1 AND contact_id = $2",
-        [ownerId, contactId]
-    );
+    await getPool().query({
+        name: "remove-contact",
+        text: "DELETE FROM contacts WHERE owner_id = $1 AND contact_id = $2",
+        values: [ownerId, contactId]
+    });
+}
+
+async function removeContactBidirectional(userA, userB) {
+    var client = await getPool().connect();
+    try {
+        await client.query("BEGIN");
+        await client.query("DELETE FROM contacts WHERE owner_id = $1 AND contact_id = $2", [userA, userB]);
+        await client.query("DELETE FROM contacts WHERE owner_id = $1 AND contact_id = $2", [userB, userA]);
+        await client.query("COMMIT");
+    } catch (e) {
+        await client.query("ROLLBACK");
+        throw e;
+    } finally {
+        client.release();
+    }
 }
 
 // ── Live Token CRUD ─────────────────────────────────────────────────────────
@@ -321,6 +464,72 @@ async function deleteEmptyOldRooms(maxAgeMs) {
     );
 }
 
+// ── Room member roles ────────────────────────────────────────────────────────
+async function setRoomMemberRole(roomDbId, userId, role, expiresAt) {
+    await getPool().query(
+        "UPDATE room_members SET role = $1, role_expires_at = $2 WHERE room_id = $3 AND user_id = $4",
+        [role, expiresAt || null, roomDbId, userId]
+    );
+}
+
+async function expireRoomAdmins(now) {
+    var res = await getPool().query(
+        "UPDATE room_members SET role = 'member', role_expires_at = NULL WHERE role = 'admin' AND role_expires_at IS NOT NULL AND role_expires_at <= $1 RETURNING room_id, user_id",
+        [now]
+    );
+    return res.rows;
+}
+
+// ── Guardianship CRUD ────────────────────────────────────────────────────────
+async function createGuardianship(guardianId, wardId, status, expiresAt, createdAt, initiatedBy) {
+    await getPool().query(
+        "INSERT INTO guardianships (guardian_id, ward_id, status, expires_at, created_at, initiated_by) VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (guardian_id, ward_id) DO UPDATE SET status = $3, expires_at = $4, initiated_by = COALESCE($6, guardianships.initiated_by)",
+        [guardianId, wardId, status, expiresAt || null, createdAt, initiatedBy || "guardian"]
+    );
+}
+
+async function updateGuardianshipStatus(guardianId, wardId, status) {
+    await getPool().query(
+        "UPDATE guardianships SET status = $1 WHERE guardian_id = $2 AND ward_id = $3",
+        [status, guardianId, wardId]
+    );
+}
+
+async function deleteGuardianship(guardianId, wardId) {
+    await getPool().query(
+        "DELETE FROM guardianships WHERE guardian_id = $1 AND ward_id = $2",
+        [guardianId, wardId]
+    );
+}
+
+async function expireGuardianships(now) {
+    var res = await getPool().query(
+        "UPDATE guardianships SET status = 'expired' WHERE status = 'active' AND expires_at IS NOT NULL AND expires_at <= $1 RETURNING guardian_id, ward_id",
+        [now]
+    );
+    return res.rows;
+}
+
+// ── Room admin requests (persistent majority voting) ────────────────────────
+async function createRoomAdminRequest(roomCode, userId, expiresIn, createdAt) {
+    await getPool().query(
+        "INSERT INTO room_admin_requests (room_code, user_id, expires_in, created_at) VALUES ($1, $2, $3, $4) ON CONFLICT (room_code, user_id) DO NOTHING",
+        [roomCode, userId, expiresIn || null, createdAt]
+    );
+}
+
+async function deleteRoomAdminRequest(roomCode, userId) {
+    await getPool().query("DELETE FROM room_admin_requests WHERE room_code = $1 AND user_id = $2", [roomCode, userId]);
+    await getPool().query("DELETE FROM room_admin_votes WHERE room_code = $1 AND requester_id = $2", [roomCode, userId]);
+}
+
+async function upsertRoomAdminVote(roomCode, requesterId, voterId, vote) {
+    await getPool().query(
+        "INSERT INTO room_admin_votes (room_code, requester_id, voter_id, vote) VALUES ($1, $2, $3, $4) ON CONFLICT (room_code, requester_id, voter_id) DO UPDATE SET vote = $4",
+        [roomCode, requesterId, voterId, vote]
+    );
+}
+
 // ── Storage monitoring ──────────────────────────────────────────────────────
 async function getTableSizes() {
     var p = getPool();
@@ -343,6 +552,7 @@ module.exports = {
     loadAll: loadAll,
     createUser: createUser,
     updateUserRole: updateUserRole,
+    getUserPasswordHash: getUserPasswordHash,
     findUserByContact: findUserByContact,
     findUserByEmail: findUserByEmail,
     findUserByMobile: findUserByMobile,
@@ -352,11 +562,22 @@ module.exports = {
     removeRoomMember: removeRoomMember,
     deleteRoom: deleteRoom,
     addContact: addContact,
+    addContactBidirectional: addContactBidirectional,
     removeContact: removeContact,
+    removeContactBidirectional: removeContactBidirectional,
     createLiveToken: createLiveToken,
     deleteLiveToken: deleteLiveToken,
     deleteExpiredLiveTokens: deleteExpiredLiveTokens,
     deleteEmptyOldRooms: deleteEmptyOldRooms,
+    setRoomMemberRole: setRoomMemberRole,
+    expireRoomAdmins: expireRoomAdmins,
+    createGuardianship: createGuardianship,
+    updateGuardianshipStatus: updateGuardianshipStatus,
+    deleteGuardianship: deleteGuardianship,
+    expireGuardianships: expireGuardianships,
+    createRoomAdminRequest: createRoomAdminRequest,
+    deleteRoomAdminRequest: deleteRoomAdminRequest,
+    upsertRoomAdminVote: upsertRoomAdminVote,
     getTableSizes: getTableSizes,
     closePool: closePool,
     getPool: getPool

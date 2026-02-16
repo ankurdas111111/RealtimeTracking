@@ -1,4 +1,5 @@
 var socketio = require("socket.io");
+var msgpackParser = require("socket.io-msgpack-parser");
 var cache = require("../cache");
 var config = require("../config");
 var emitters = require("../services/emitters");
@@ -14,7 +15,9 @@ function createSocketServer(server, sessionMiddleware) {
         cors: { origin: false },
         pingTimeout: 20000,
         pingInterval: 25000,
-        perMessageDeflate: { threshold: 1024 }
+        perMessageDeflate: { threshold: 1024 },
+        transports: ["websocket"],
+        parser: msgpackParser
     });
 
     // Share io reference with services that need it
@@ -35,19 +38,20 @@ function createSocketServer(server, sessionMiddleware) {
         var clientId = socket.handshake && socket.handshake.auth ? socket.handshake.auth.clientId : null;
 
         // ── Socket error wrapper ─────────────────────────────────────────
-        function safe(fn) {
+        function safe(fn, eventName) {
             return function(data) {
                 try {
                     var result = fn.call(this, data);
                     if (result && typeof result.catch === "function") {
-                        result.catch(function(e) { log.error({ err: e.message }, "Socket handler async error"); });
+                        result.catch(function(e) { log.error({ err: e.message, event: eventName || "unknown", userId: userId || null }, "Socket handler async error"); });
                     }
-                } catch (e) { log.error({ err: e.message }, "Socket handler error"); }
+                } catch (e) { log.error({ err: e.message, event: eventName || "unknown", userId: userId || null }, "Socket handler error"); }
             };
         }
 
-        // ── Unauthenticated connections (watch / live pages) ─────────────
-        if (!authUser || !authUser.id) {
+        // ── Unauthenticated or viewer connections (watch / live pages) ────
+        var isViewer = socket.handshake && socket.handshake.auth && socket.handshake.auth.viewer;
+        if (!authUser || !authUser.id || isViewer) {
             publicHandlers.register(socket, safe);
             return;
         }
@@ -72,17 +76,19 @@ function createSocketServer(server, sessionMiddleware) {
             user.online = true;
             user.rooms = emitters.getUserRooms(userId);
             cache.activeUsers.set(socket.id, user);
+            cache.userIdToSocketId.set(userId, socket.id);
             restoredFromOffline = true;
         } else {
-            for (var [sid, u] of cache.activeUsers) {
-                if (u.userId === userId && sid !== socket.id) {
-                    try { var s = io.sockets.sockets.get(sid); if (s) s.disconnect(true); } catch (_) {}
-                    cache.activeUsers.delete(sid);
-                    cache.lastVisibleSets.delete(sid);
-                    visibility.emitToVisible(u, "userDisconnect", sid);
-                    break;
-                }
+            // Evict previous socket for same userId (O(1) via index)
+            var prevSid = cache.userIdToSocketId.get(userId);
+            if (prevSid && prevSid !== socket.id) {
+                var prevUser = cache.activeUsers.get(prevSid);
+                try { var s = io.sockets.sockets.get(prevSid); if (s) s.disconnect(true); } catch (_) {}
+                cache.activeUsers.delete(prevSid);
+                cache.lastVisibleSets.delete(prevSid);
+                if (prevUser) visibility.emitToVisible(prevUser, "userDisconnect", prevSid);
             }
+            cache.userIdToSocketId.set(userId, socket.id);
             cache.activeUsers.set(socket.id, {
                 socketId: socket.id, userId: userId, displayName: displayName, role: role,
                 latitude: null, longitude: null, lastUpdate: Date.now(),
@@ -98,20 +104,30 @@ function createSocketServer(server, sessionMiddleware) {
         }
 
         var me = cache.activeUsers.get(socket.id);
-        var allUsers = [
-            ...Array.from(cache.activeUsers.values()).map(function(u2) { return { ...emitters.sanitizeUser(u2), online: true }; }),
-            ...Array.from(cache.offlineUsers.values()).map(function(e) { return { ...emitters.sanitizeUser(e.user), online: false, offlineExpiresAt: e.expiresAt }; })
-        ];
-        // Add stored-position users (contacts/room members not yet reconnected)
+        // Optimised: get visible set first, then only sanitize visible users
+        var visibleSet = visibility.getVisibleSet(userId);
+        var existingUsers = [];
         var seenUserIds = new Set();
-        for (var i = 0; i < allUsers.length; i++) { seenUserIds.add(allUsers[i].userId); }
+        for (var [, u2] of cache.activeUsers) {
+            if (visibleSet.has(u2.userId)) {
+                existingUsers.push({ ...emitters.sanitizeUser(u2), online: true });
+                seenUserIds.add(u2.userId);
+            }
+        }
+        for (var [, offEntry] of cache.offlineUsers) {
+            if (visibleSet.has(offEntry.user.userId) && !seenUserIds.has(offEntry.user.userId)) {
+                existingUsers.push({ ...emitters.sanitizeUser(offEntry.user), online: false, offlineExpiresAt: offEntry.expiresAt });
+                seenUserIds.add(offEntry.user.userId);
+            }
+        }
+        // Add stored-position users only if visible and not already seen
         var ucKeys = Object.keys(cache.usersCache);
         for (var k = 0; k < ucKeys.length; k++) {
             var uid = ucKeys[k];
-            if (seenUserIds.has(uid)) continue;
+            if (seenUserIds.has(uid) || !visibleSet.has(uid)) continue;
             var uc = cache.usersCache[uid];
             if (uc.lastLatitude != null && uc.lastLongitude != null) {
-                allUsers.push({
+                existingUsers.push({
                     socketId: "stored-" + uid,
                     userId: uid,
                     displayName: emitters.getDisplayName(uid),
@@ -129,7 +145,7 @@ function createSocketServer(server, sessionMiddleware) {
                 });
             }
         }
-        socket.emit("existingUsers", allUsers.filter(function(u2) { return visibility.canSee(userId, u2.userId); }));
+        socket.emit("existingUsers", existingUsers);
         visibility.emitToVisible(me, "userConnected", { socketId: socket.id, userId: userId, displayName: displayName, role: role });
         if (restoredFromOffline) visibility.emitToVisibleAndSelf(me, "userUpdate", { ...emitters.sanitizeUser(me), online: true });
 
@@ -141,7 +157,9 @@ function createSocketServer(server, sessionMiddleware) {
         });
         emitters.emitMyRooms(socket, userId);
         emitters.emitMyContacts(socket, userId);
+        emitters.emitMyGuardians(socket, userId);
         emitters.emitMyLiveLinks(socket, userId);
+        emitters.emitPendingRequests(socket, userId);
 
         // Register all authenticated event handlers
         authHandlers.register(socket, safe, userId, role, displayName);

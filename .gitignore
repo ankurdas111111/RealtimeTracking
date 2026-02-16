@@ -11,3 +11,4 @@ data/
 sessions/
 coverage/
 *.sql
+frontend/dist/

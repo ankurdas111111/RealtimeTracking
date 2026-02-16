@@ -7,7 +7,7 @@ var log = pino({ level: process.env.LOG_LEVEL || "info" });
 var MAX_ROOMS_PER_USER = 20;
 var MAX_CONTACTS_PER_USER = 50;
 var MAX_LIVE_LINKS_PER_USER = 10;
-var POSITION_COOLDOWN_MS = 400;
+var POSITION_COOLDOWN_MS = 100;
 
 module.exports = {
     log: log,
