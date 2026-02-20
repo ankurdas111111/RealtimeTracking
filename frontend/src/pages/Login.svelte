@@ -9,6 +9,7 @@
   let mode = 'email';
   let loginId = '';
   let password = '';
+  let showPassword = false;
   let countryIso = 'IN';
   let mobileDigits = '';
   let error = '';
@@ -107,12 +108,23 @@
   <div class="auth-bg"><div class="auth-bg-blob"></div></div>
 
   <div class="auth-brand">
-    <div class="auth-brand-logo">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="10" r="3"/><path d="M12 2a8 8 0 0 0-8 8c0 1.892.402 3.13 1.5 4.5L12 22l6.5-7.5c1.098-1.37 1.5-2.608 1.5-4.5a8 8 0 0 0-8-8z"/></svg>
+    <div class="auth-brand-inner">
+      <div class="auth-brand-logo">
+        <svg width="24" height="29" viewBox="0 0 20 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M10 1C5.029 1 1 5.029 1 10c0 6.938 8.25 13.1 9 14.1.75-1 9-7.162 9-14.1C19 5.029 14.971 1 10 1z" fill="white" fill-opacity="0.95"/>
+          <path d="M7 7v6M7 10l3.5-3M7 10l3.5 3" stroke="#4338ca" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+      <div class="auth-brand-badge">Kinnect = Kin + Connect</div>
+      <h1>Keep your<br>family close</h1>
+      <p>Real-time GPS location sharing for families. Stay connected, stay safe.</p>
+      <ul class="auth-brand-features">
+        <li><span class="feature-check">&#10003;</span> Live location sharing</li>
+        <li><span class="feature-check">&#10003;</span> SOS emergency alerts</li>
+        <li><span class="feature-check">&#10003;</span> Safe zone notifications</li>
+        <li><span class="feature-check">&#10003;</span> Works on all devices</li>
+      </ul>
     </div>
-    <h1>Kinnect</h1>
-    <p>Your family, always close. Track, share, and stay connected in real time.</p>
-    <p class="text-xs text-muted" style="margin-top:var(--space-2);opacity:0.7;">Kinnect = Kin + Connect</p>
   </div>
 
   <div class="auth-form-area">
@@ -183,15 +195,24 @@
 
         <div class="auth-field">
           <label for="password">Password</label>
-          <input
-            id="password"
-            type="password"
-            class="input"
-            class:is-invalid={passwordError}
-            bind:value={password}
-            autocomplete="current-password"
-            on:blur={() => passwordTouched = true}
-          />
+          <div class="input-wrapper">
+            <input
+              id="password"
+              type={showPassword ? 'text' : 'password'}
+              class="input"
+              class:is-invalid={passwordError}
+              bind:value={password}
+              autocomplete="current-password"
+              on:blur={() => passwordTouched = true}
+            />
+            <button type="button" class="input-icon input-icon--toggle" on:click={() => showPassword = !showPassword} aria-label={showPassword ? 'Hide password' : 'Show password'}>
+              {#if showPassword}
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+              {:else}
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              {/if}
+            </button>
+          </div>
           {#if passwordError}
             <span class="auth-hint error">At least 6 characters</span>
           {/if}
@@ -232,6 +253,19 @@
   .input-icon.valid {
     color: var(--success-500);
   }
+  .input-icon--toggle {
+    pointer-events: auto;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--text-tertiary);
+    display: flex;
+    align-items: center;
+    padding: 2px;
+    border-radius: 4px;
+    transition: color 0.15s;
+  }
+  .input-icon--toggle:hover { color: var(--text-secondary); }
   .is-valid {
     border-color: var(--success-400) !important;
   }

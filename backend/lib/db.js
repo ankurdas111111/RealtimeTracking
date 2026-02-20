@@ -70,6 +70,18 @@ CREATE TABLE IF NOT EXISTS guardianships (
     UNIQUE(guardian_id, ward_id)
 );
 
+CREATE TABLE IF NOT EXISTS position_history (
+    id          BIGSERIAL PRIMARY KEY,
+    user_id     UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    latitude    DOUBLE PRECISION NOT NULL,
+    longitude   DOUBLE PRECISION NOT NULL,
+    speed       REAL,
+    accuracy    REAL,
+    recorded_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_pos_history_user_time ON position_history (user_id, recorded_at DESC);
+CREATE INDEX IF NOT EXISTS idx_pos_history_recorded_at ON position_history (recorded_at);
+
 CREATE INDEX IF NOT EXISTS idx_contacts_contact_id ON contacts(contact_id);
 CREATE INDEX IF NOT EXISTS idx_live_tokens_expires ON live_tokens(expires_at) WHERE expires_at IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_guardianships_ward ON guardianships(ward_id);
@@ -173,13 +185,25 @@ async function initDb() {
  */
 async function loadAll() {
     var p = getPool();
+    var now = Date.now();
+
+    // Run all independent SELECT queries in parallel (pure reads, no ordering constraints)
+    var [uRes, rRes, mRes, cRes, lRes, gRes, raRes, vRes] = await Promise.all([
+        p.query("SELECT id, first_name, last_name, role, share_code, email, mobile, created_at, last_latitude, last_longitude, last_speed, last_update FROM users"),
+        p.query("SELECT id, code, name, created_by, created_at FROM rooms"),
+        p.query("SELECT rm.room_id, rm.user_id, rm.role, rm.role_expires_at, r.code FROM room_members rm JOIN rooms r ON r.id = rm.room_id"),
+        p.query("SELECT owner_id, contact_id FROM contacts"),
+        p.query("SELECT token, user_id, expires_at, created_at FROM live_tokens"),
+        p.query("SELECT guardian_id, ward_id, status, expires_at, created_at, initiated_by FROM guardianships WHERE status IN ('pending', 'active')"),
+        p.query("SELECT room_code, user_id, expires_in, created_at FROM room_admin_requests"),
+        p.query("SELECT room_code, requester_id, voter_id, vote FROM room_admin_votes")
+    ]);
 
     // Users
     var usersCache = {};
     var shareCodes = new Map();
     var emailIndex = new Map();
     var mobileIndex = new Map();
-    var uRes = await p.query("SELECT id, first_name, last_name, role, share_code, email, mobile, created_at, last_latitude, last_longitude, last_speed, last_update FROM users");
     for (var row of uRes.rows) {
         var uid = row.id;
         usersCache[uid] = {
@@ -200,9 +224,8 @@ async function loadAll() {
         if (row.mobile) mobileIndex.set(row.mobile, uid);
     }
 
-    // Rooms + members (join on rooms.id = room_members.room_id)
+    // Rooms
     var roomsMap = new Map();
-    var rRes = await p.query("SELECT id, code, name, created_by, created_at FROM rooms");
     for (var rr of rRes.rows) {
         roomsMap.set(rr.code, {
             dbId: rr.id,
@@ -212,8 +235,9 @@ async function loadAll() {
             createdAt: Number(rr.created_at)
         });
     }
+
+    // Room members + roles
     var roomMemberRoles = new Map();
-    var mRes = await p.query("SELECT rm.room_id, rm.user_id, rm.role, rm.role_expires_at, r.code FROM room_members rm JOIN rooms r ON r.id = rm.room_id");
     for (var mr of mRes.rows) {
         var room = roomsMap.get(mr.code);
         if (room) room.members.add(mr.user_id);
@@ -230,7 +254,6 @@ async function loadAll() {
 
     // Contacts
     var contactsMap = new Map();
-    var cRes = await p.query("SELECT owner_id, contact_id FROM contacts");
     for (var cr of cRes.rows) {
         if (!contactsMap.has(cr.owner_id)) contactsMap.set(cr.owner_id, new Set());
         contactsMap.get(cr.owner_id).add(cr.contact_id);
@@ -238,8 +261,6 @@ async function loadAll() {
 
     // Live tokens (filter out expired)
     var liveTokensMap = new Map();
-    var now = Date.now();
-    var lRes = await p.query("SELECT token, user_id, expires_at, created_at FROM live_tokens");
     for (var lr of lRes.rows) {
         var expiresAt = lr.expires_at ? Number(lr.expires_at) : null;
         if (expiresAt && expiresAt <= now) continue; // skip expired
@@ -249,12 +270,11 @@ async function loadAll() {
             createdAt: Number(lr.created_at)
         });
     }
-    // Clean expired from DB
-    await p.query("DELETE FROM live_tokens WHERE expires_at IS NOT NULL AND expires_at <= $1", [now]);
+    // Clean expired from DB (fire-and-forget; non-critical)
+    p.query("DELETE FROM live_tokens WHERE expires_at IS NOT NULL AND expires_at <= $1", [now]).catch(function() {});
 
     // Guardianships
     var guardianshipsMap = new Map();
-    var gRes = await p.query("SELECT guardian_id, ward_id, status, expires_at, created_at, initiated_by FROM guardianships WHERE status IN ('pending', 'active')");
     for (var gr of gRes.rows) {
         if (!guardianshipsMap.has(gr.guardian_id)) guardianshipsMap.set(gr.guardian_id, new Map());
         guardianshipsMap.get(gr.guardian_id).set(gr.ward_id, {
@@ -265,9 +285,8 @@ async function loadAll() {
         });
     }
 
-    // Room admin requests + votes
+    // Room admin requests
     var roomAdminRequests = new Map();
-    var raRes = await p.query("SELECT room_code, user_id, expires_in, created_at FROM room_admin_requests");
     for (var ra of raRes.rows) {
         var key = ra.room_code + ":roomAdmin";
         if (!roomAdminRequests.has(key)) roomAdminRequests.set(key, []);
@@ -277,7 +296,8 @@ async function loadAll() {
             approvals: new Set(), denials: new Set()
         });
     }
-    var vRes = await p.query("SELECT room_code, requester_id, voter_id, vote FROM room_admin_votes");
+
+    // Room admin votes (attach to requests)
     for (var vr of vRes.rows) {
         var vKey = vr.room_code + ":roomAdmin";
         var reqs = roomAdminRequests.get(vKey) || [];
@@ -542,6 +562,40 @@ async function getTableSizes() {
     return { tables: tablesRes.rows, totalSize: totalRes.rows[0].total };
 }
 
+// ── Position history ────────────────────────────────────────────────────────
+/**
+ * Batch-insert position records into position_history.
+ * Called asynchronously (off the hot path) every ~10 seconds.
+ *
+ * @param {Array<{userId:string, latitude:number, longitude:number, speed?:number, accuracy?:number}>} rows
+ */
+async function insertPositionHistory(rows) {
+    if (!rows || rows.length === 0) return;
+    var p = getPool();
+    // Build a multi-row VALUES clause
+    var values = [];
+    var params = [];
+    var idx = 1;
+    for (var i = 0; i < rows.length; i++) {
+        var r = rows[i];
+        values.push("($" + idx + ", $" + (idx + 1) + ", $" + (idx + 2) + ", $" + (idx + 3) + ", $" + (idx + 4) + ")");
+        params.push(r.userId, r.latitude, r.longitude, r.speed || null, r.accuracy || null);
+        idx += 5;
+    }
+    var sql = "INSERT INTO position_history (user_id, latitude, longitude, speed, accuracy) VALUES " + values.join(", ");
+    await p.query(sql, params);
+}
+
+/**
+ * Delete position_history records older than the given number of days.
+ *
+ * @param {number} days  Retention period (default 7).
+ */
+async function purgePositionHistory(days) {
+    var p = getPool();
+    await p.query("DELETE FROM position_history WHERE recorded_at < NOW() - MAKE_INTERVAL(days => $1)", [days || 7]);
+}
+
 // ── Pool shutdown ───────────────────────────────────────────────────────────
 async function closePool() {
     if (pool) { await pool.end(); pool = null; }
@@ -579,6 +633,8 @@ module.exports = {
     deleteRoomAdminRequest: deleteRoomAdminRequest,
     upsertRoomAdminVote: upsertRoomAdminVote,
     getTableSizes: getTableSizes,
+    insertPositionHistory: insertPositionHistory,
+    purgePositionHistory: purgePositionHistory,
     closePool: closePool,
     getPool: getPool
 };

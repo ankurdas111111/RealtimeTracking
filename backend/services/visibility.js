@@ -104,6 +104,8 @@ function sendVisibilityRefreshIfChanged(socket, user) {
 var _pendingVisRefresh = new Map(); // socketId → { socket, user }
 var _visRefreshScheduled = false;
 
+// NOTE: Between cache mutation and setImmediate flush, other code can read
+// stale visibility data. Window is <1ms — acceptable at current scale.
 function scheduleVisibilityRefresh(socket, user) {
     if (!_pendingVisRefresh.has(socket.id)) {
         _pendingVisRefresh.set(socket.id, { socket: socket, user: user });
@@ -119,6 +121,8 @@ function flushVisibilityRefreshes() {
     var batch = _pendingVisRefresh;
     _pendingVisRefresh = new Map();
     for (var entry of batch.values()) {
+        // Skip sockets that disconnected between being queued and the flush firing
+        if (!cache.activeUsers.has(entry.socket.id)) continue;
         sendVisibilityRefreshIfChanged(entry.socket, entry.user);
     }
 }
@@ -128,19 +132,42 @@ function flushVisibilityRefreshes() {
 var _pendingPositions = new Map(); // socketId → { user, data }
 var _positionBatchTimer = null;
 var BATCH_INTERVAL_MS = 40;
+var MAX_POSITION_QUEUE = 500;
+var _posQueueWarningLogged = false;
 
 function queuePositionBroadcast(user, data) {
+    // Backpressure: if queue exceeds limit, drop oldest entries
+    if (_pendingPositions.size >= MAX_POSITION_QUEUE) {
+        var excess = _pendingPositions.size - MAX_POSITION_QUEUE + 1;
+        var iter = _pendingPositions.keys();
+        for (var i = 0; i < excess; i++) {
+            var key = iter.next().value;
+            _pendingPositions.delete(key);
+        }
+        if (!_posQueueWarningLogged) {
+            var config = require("../config");
+            config.log.warn({ queueSize: _pendingPositions.size, max: MAX_POSITION_QUEUE }, "Position broadcast queue overflow — dropping oldest");
+            _posQueueWarningLogged = true;
+            setTimeout(function() { _posQueueWarningLogged = false; }, 10000);
+        }
+    }
     _pendingPositions.set(user.socketId, { user: user, data: data });
     if (!_positionBatchTimer) {
         _positionBatchTimer = setTimeout(flushPositionBroadcasts, BATCH_INTERVAL_MS);
     }
 }
 
+function getPositionQueueDepth() {
+    return _pendingPositions.size;
+}
+
 function flushPositionBroadcasts() {
     _positionBatchTimer = null;
     var batch = _pendingPositions;
     _pendingPositions = new Map();
+    var serverTs = Date.now();
     for (var entry of batch.values()) {
+        entry.data.serverTs = serverTs;
         emitToVisible(entry.user, "userUpdate", entry.data);
     }
 }
@@ -158,5 +185,6 @@ module.exports = {
     sendVisibilityRefresh: sendVisibilityRefresh,
     sendVisibilityRefreshIfChanged: sendVisibilityRefreshIfChanged,
     scheduleVisibilityRefresh: scheduleVisibilityRefresh,
-    queuePositionBroadcast: queuePositionBroadcast
+    queuePositionBroadcast: queuePositionBroadcast,
+    getPositionQueueDepth: getPositionQueueDepth
 };

@@ -8,6 +8,7 @@
   import { myGuardianData, pendingIncomingRequests } from '../lib/stores/guardians.js';
   import { formatCoordinate } from '../lib/tracking.js';
   import { trackingMetrics } from '../lib/stores/metrics.js';
+  import { latencyMetrics } from '../lib/stores/latency.js';
 
   export let embedded = false;
   let statsOpen = false;
@@ -102,6 +103,7 @@
         <button class="tracking-stats-toggle" on:click={() => statsOpen = !statsOpen}>
           <span class="accuracy-dot" class:green={$trackingMetrics.lastAccuracy != null && $trackingMetrics.lastAccuracy <= 15} class:yellow={$trackingMetrics.lastAccuracy != null && $trackingMetrics.lastAccuracy > 15 && $trackingMetrics.lastAccuracy <= 50} class:red={$trackingMetrics.lastAccuracy != null && $trackingMetrics.lastAccuracy > 50}></span>
           GPS {$trackingMetrics.lastAccuracy != null ? `~${$trackingMetrics.lastAccuracy}m` : '...'} &middot; {$trackingMetrics.filterState}
+          {#if $latencyMetrics.avgE2eMs != null} &middot; {$latencyMetrics.avgE2eMs}ms{/if}
           <svg class="chevron" class:open={statsOpen} xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
         </button>
         {#if statsOpen}
@@ -111,6 +113,12 @@
             <div class="stat-row"><span>Rate</span><span>{$trackingMetrics.updatesPerSec}/s</span></div>
             <div class="stat-row"><span>Kalman</span><span>{$trackingMetrics.kalmanCorrectionM}m correction</span></div>
             <div class="stat-row"><span>Filter</span><span>{$trackingMetrics.filterState}</span></div>
+            {#if $latencyMetrics.lastE2eMs != null}
+              <div class="stat-row"><span>E2E Latency</span><span class="latency-value" class:latency-good={$latencyMetrics.lastE2eMs < 300} class:latency-ok={$latencyMetrics.lastE2eMs >= 300 && $latencyMetrics.lastE2eMs < 800} class:latency-bad={$latencyMetrics.lastE2eMs >= 800}>{$latencyMetrics.lastE2eMs}ms (avg {$latencyMetrics.avgE2eMs}ms)</span></div>
+            {/if}
+            {#if $latencyMetrics.lastServerHopMs != null}
+              <div class="stat-row"><span>Server Hop</span><span>{$latencyMetrics.lastServerHopMs}ms</span></div>
+            {/if}
           </div>
         {/if}
       {/if}
@@ -256,6 +264,7 @@
           <button class="tracking-stats-toggle" on:click={() => statsOpen = !statsOpen}>
             <span class="accuracy-dot" class:green={$trackingMetrics.lastAccuracy != null && $trackingMetrics.lastAccuracy <= 15} class:yellow={$trackingMetrics.lastAccuracy != null && $trackingMetrics.lastAccuracy > 15 && $trackingMetrics.lastAccuracy <= 50} class:red={$trackingMetrics.lastAccuracy != null && $trackingMetrics.lastAccuracy > 50}></span>
             GPS {$trackingMetrics.lastAccuracy != null ? `~${$trackingMetrics.lastAccuracy}m` : '...'} &middot; {$trackingMetrics.filterState}
+            {#if $latencyMetrics.avgE2eMs != null} &middot; {$latencyMetrics.avgE2eMs}ms{/if}
             <svg class="chevron" class:open={statsOpen} xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
           </button>
           {#if statsOpen}
@@ -265,6 +274,12 @@
               <div class="stat-row"><span>Rate</span><span>{$trackingMetrics.updatesPerSec}/s</span></div>
               <div class="stat-row"><span>Kalman</span><span>{$trackingMetrics.kalmanCorrectionM}m correction</span></div>
               <div class="stat-row"><span>Filter</span><span>{$trackingMetrics.filterState}</span></div>
+              {#if $latencyMetrics.lastE2eMs != null}
+                <div class="stat-row"><span>E2E Latency</span><span class="latency-value" class:latency-good={$latencyMetrics.lastE2eMs < 300} class:latency-ok={$latencyMetrics.lastE2eMs >= 300 && $latencyMetrics.lastE2eMs < 800} class:latency-bad={$latencyMetrics.lastE2eMs >= 800}>{$latencyMetrics.lastE2eMs}ms (avg {$latencyMetrics.avgE2eMs}ms)</span></div>
+              {/if}
+              {#if $latencyMetrics.lastServerHopMs != null}
+                <div class="stat-row"><span>Server Hop</span><span>{$latencyMetrics.lastServerHopMs}ms</span></div>
+              {/if}
             </div>
           {/if}
         {/if}
@@ -437,5 +452,8 @@
     background: var(--danger-500, #ef4444);
     color: #fff;
   }
+  .latency-good { color: var(--success-500, #22c55e); font-weight: 600; }
+  .latency-ok { color: var(--warning-500, #eab308); font-weight: 600; }
+  .latency-bad { color: var(--danger-500, #ef4444); font-weight: 600; }
 
 </style>

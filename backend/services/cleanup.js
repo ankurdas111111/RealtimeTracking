@@ -28,7 +28,12 @@ function startAll() {
     // ── Expire watch tokens ──────────────────────────────────────────────
     setInterval(function() {
         var now = Date.now();
-        for (var [token, entry] of cache.watchTokens.entries()) { if (entry.exp < now) cache.watchTokens.delete(token); }
+        for (var [token, entry] of cache.watchTokens.entries()) {
+            if (entry.exp < now) {
+                _io.to("watch:" + token).emit("watchUpdate", { user: null, sos: { active: false } });
+                cache.watchTokens.delete(token);
+            }
+        }
     }, 30 * 1000);
 
     // ── Expire live tokens ───────────────────────────────────────────────

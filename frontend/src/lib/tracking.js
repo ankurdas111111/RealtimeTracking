@@ -21,6 +21,12 @@ export function escapeAttr(str) {
   return str.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
+// Fix L: cache createMapIcon results to avoid recreating SVG + L.divIcon on every call.
+// Key: color|text|markerType|pulse — covers all parameters that affect icon appearance.
+// CSS variable colors (e.g. var(--primary-500)) resolve at paint time, not creation time,
+// so caching them is safe.
+const _iconCache = new Map();
+
 /**
  * Create a Leaflet divIcon with badge/shield marker styling.
  * @param {string} color - The background color of the marker.
@@ -30,7 +36,11 @@ export function escapeAttr(str) {
  */
 export function createMapIcon(color, text, options = {}) {
   const type = options.markerType || 'default';
-  const pulseClass = options.pulse ? ' pulse' : '';
+  const pulse = options.pulse ? 1 : 0;
+  const cacheKey = `${color}|${text}|${type}|${pulse}`;
+  if (_iconCache.has(cacheKey)) return _iconCache.get(cacheKey);
+
+  const pulseClass = pulse ? ' pulse' : '';
   const typeClass = type !== 'default' ? ` marker-${type}` : '';
   const safeColor = escapeAttr(color);
   const safeText = escapeAttr(text || '');
@@ -61,13 +71,15 @@ export function createMapIcon(color, text, options = {}) {
     <span class="badge-text">${safeText}</span>
   </div>`;
 
-  return L.divIcon({
+  const icon = L.divIcon({
     className: `custom-map-icon`,
     html: html,
     iconSize: [w, h],
     iconAnchor: [w / 2, h],
     popupAnchor: [0, -h + 4]
   });
+  _iconCache.set(cacheKey, icon);
+  return icon;
 }
 
 /**

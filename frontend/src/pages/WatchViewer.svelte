@@ -5,6 +5,7 @@
   import { io } from 'socket.io-client';
   import * as msgpackParser from 'socket.io-msgpack-parser';
   import { createMapIcon, formatCoordinate, escapeAttr } from '../lib/tracking.js';
+  import { animateMarkerTo } from '../lib/markerInterpolator.js';
 
   export let params = {};
 
@@ -73,16 +74,23 @@
     try { if (navigator.vibrate) navigator.vibrate([200, 100, 200]); } catch (_) {}
   }
 
+  let followMode = true;
+
   function update(u) {
     if (!u || typeof u.latitude !== 'number') return;
     const ll = [u.latitude, u.longitude];
     const popup = `<strong>${escapeAttr(u.displayName || 'User')}</strong><br>Lat: ${formatCoordinate(u.latitude)}<br>Lng: ${formatCoordinate(u.longitude)}<br>Speed: ${u.speed || '0'} km/h`;
     if (!marker) {
       marker = L.marker(ll, { icon: createMapIcon('var(--danger-500)', '', { pulse: true, markerType: 'sos' }) }).addTo(map).bindPopup(popup);
+      map.setView(ll, 16);
     } else {
-      marker.setLatLng(ll).setPopupContent(popup);
+      animateMarkerTo('watch-target', marker, ll, 300);
+      marker.setPopupContent(popup);
+      // Adaptive recentering: only pan if marker leaves visible bounds
+      if (followMode && !map.getBounds().contains(ll)) {
+        map.panTo(ll, { animate: true, duration: 0.5 });
+      }
     }
-    map.setView(ll, 16);
   }
 
   onMount(() => {
@@ -119,7 +127,12 @@
     {/if}
     <span>{bannerText}</span>
   </div>
-  <a href="/#/login" class="open-kinnect-btn btn btn-sm btn-secondary" aria-label="Open in Kinnect">Open in Kinnect</a>
+  <div class="bottom-controls">
+    <button class="btn btn-sm" class:btn-primary={followMode} class:btn-secondary={!followMode} on:click={() => followMode = !followMode} aria-label={followMode ? 'Disable auto-follow' : 'Enable auto-follow'}>
+      {followMode ? 'Following' : 'Follow'}
+    </button>
+    <a href="/#/login" class="btn btn-sm btn-secondary" aria-label="Open in Kinnect">Open in Kinnect</a>
+  </div>
 </div>
 
 <style>
@@ -165,19 +178,22 @@
     background: var(--danger-500);
   }
 
-  .open-kinnect-btn {
+  .bottom-controls {
     position: absolute;
     bottom: var(--space-4);
     left: 50%;
     transform: translateX(-50%);
     z-index: 50;
-    text-decoration: none;
+    display: flex;
+    gap: var(--space-2);
     box-shadow: var(--shadow-lg);
+  }
+  .bottom-controls a {
+    text-decoration: none;
   }
 
   @media (min-width: 768px) {
-    .open-kinnect-btn {
-      bottom: var(--space-4);
+    .bottom-controls {
       left: auto;
       right: var(--space-4);
       transform: none;

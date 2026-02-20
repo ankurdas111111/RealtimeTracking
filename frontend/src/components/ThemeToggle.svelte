@@ -1,5 +1,17 @@
 <script>
+  import { onMount, onDestroy } from 'svelte';
+
   let dark = document.documentElement.getAttribute('data-theme') === 'dark';
+  let observer = null;
+
+  onMount(() => {
+    observer = new MutationObserver(() => {
+      dark = document.documentElement.getAttribute('data-theme') === 'dark';
+    });
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+  });
+
+  onDestroy(() => { if (observer) observer.disconnect(); });
 
   function toggle() {
     dark = !dark;

@@ -14,6 +14,11 @@ function register(socket, safe) {
         if (!entry || entry.exp < Date.now()) return;
         socket.join("watch:" + token);
         var target = entry.socketId ? cache.activeUsers.get(entry.socketId) : emitters.findActiveUserByUserId(entry.userId || "");
+        // Fall back to offline user for last-known position
+        if (!target && entry.userId) {
+            var offEntry = cache.offlineUsers.get(entry.userId);
+            if (offEntry) target = offEntry.user;
+        }
         if (target) socket.emit("watchInit", { user: emitters.sanitizeUser(target), sos: sos.publicSos(target) });
     }));
 
@@ -28,7 +33,12 @@ function register(socket, safe) {
         socket._liveToken = token;
         socket._liveViewerName = viewerName || "Viewer";
         var target = emitters.findActiveUserByUserId(entry.userId);
-        var initData = { user: target ? emitters.sanitizeUser(target) : null };
+        // Fall back to offline or cached user for last-known position
+        if (!target) {
+            var offEntry = cache.offlineUsers.get(entry.userId);
+            if (offEntry) target = offEntry.user;
+        }
+        var initData = { user: target ? emitters.sanitizeUser(target) : null, online: !!emitters.findActiveUserByUserId(entry.userId) };
         if (target) {
             initData.sos = { active: !!target.sos.active, at: target.sos.at, reason: target.sos.reason, type: target.sos.type, ackCount: Array.isArray(target.sos.acks) ? target.sos.acks.length : 0, acks: target.sos.acks || [] };
             initData.checkIn = { enabled: !!(target.checkIn && target.checkIn.enabled), lastCheckInAt: target.checkIn ? target.checkIn.lastCheckInAt : null, intervalMinutes: target.checkIn ? target.checkIn.intervalMinutes : 0, overdueMinutes: target.checkIn ? target.checkIn.overdueMinutes : 0 };

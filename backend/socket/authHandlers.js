@@ -8,6 +8,7 @@ var sos = require("../services/sos");
 var visibility = require("../services/visibility");
 
 var permissions = require("../services/permissions");
+var positionHistory = require("../services/positionHistory");
 
 var log = config.log;
 var sanitizeString = helpers.sanitizeString;
@@ -59,6 +60,8 @@ function register(socket, safe, userId, role, displayName) {
         if (pos.speed > 0.8) user.lastMoveAt = now;
         if (prevSpeed > 25 && pos.speed < 2) user.hardStopAt = now;
         sos.runAutoRules(user);
+        // Record to position history (async batch, off hot path)
+        positionHistory.record(user.userId, pos.latitude, pos.longitude, pos.speed, pos.accuracy);
         // Debounced DB save: at most once every 30s per user
         var lastSave = cache.lastDbSaveAt.get(user.userId) || 0;
         if (now - lastSave > 30000) {
@@ -84,8 +87,8 @@ function register(socket, safe, userId, role, displayName) {
         if (!socketRateLimit(socket, "positionBatch", 5)) return;
         var user = cache.activeUsers.get(socket.id);
         if (!user) return;
-        // Process up to 50 entries to prevent abuse
-        var limit = Math.min(batch.length, 50);
+        // Process up to 200 entries (matches client offline buffer capacity)
+        var limit = Math.min(batch.length, 200);
         for (var i = 0; i < limit; i++) {
             var pos = validatePosition(batch[i]);
             if (!pos) continue;

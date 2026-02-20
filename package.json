@@ -9,7 +9,11 @@
     "dev:fe": "cd frontend && npx vite",
     "dev:be": "node backend/index.js",
     "test": "jest --forceExit --detectOpenHandles",
-    "lint": "eslint backend/ test/"
+    "lint": "eslint backend/ test/",
+    "build:android": "cd frontend && npx vite build && npx cap sync android",
+    "run:android": "cd frontend && npx cap run android",
+    "build:ios": "cd frontend && npx vite build && npx cap sync ios",
+    "run:ios": "cd frontend && npx cap run ios"
   },
   "keywords": [
     "realtime",
@@ -24,6 +28,7 @@
     "node": ">=18"
   },
   "dependencies": {
+    "@socket.io/redis-adapter": "^8.3.0",
     "bcrypt": "^6.0.0",
     "compression": "^1.8.1",
     "connect-pg-simple": "^10.0.0",
@@ -32,6 +37,7 @@
     "express-rate-limit": "^8.2.1",
     "express-session": "^1.17.3",
     "helmet": "^8.1.0",
+    "ioredis": "^5.9.3",
     "pg": "^8.18.0",
     "pino": "^9.14.0",
     "socket.io": "^4.8.1",

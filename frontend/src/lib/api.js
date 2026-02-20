@@ -1,10 +1,16 @@
+import API_BASE from './env.js';
+
 let csrfToken = null;
 
 export async function fetchCsrf() {
-  const res = await fetch('/api/csrf', { credentials: 'same-origin' });
-  if (res.ok) {
-    const data = await res.json();
-    csrfToken = data.csrfToken;
+  try {
+    const res = await fetch(API_BASE + '/api/csrf', { credentials: 'same-origin' });
+    if (res.ok) {
+      const data = await res.json();
+      csrfToken = data.csrfToken;
+    }
+  } catch {
+    // Network error — csrfToken stays null
   }
   return csrfToken;
 }
@@ -20,18 +26,26 @@ function safeJson(res) {
 }
 
 export async function apiPost(url, body = {}) {
-  if (!csrfToken) await fetchCsrf();
-  const res = await fetch(url, {
-    method: 'POST',
-    credentials: 'same-origin',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ...body, _csrf: csrfToken })
-  });
-  return safeJson(res);
+  try {
+    if (!csrfToken) await fetchCsrf();
+    const res = await fetch(API_BASE + url, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json', 'x-csrf-token': csrfToken || '' },
+      body: JSON.stringify({ ...body, _csrf: csrfToken })
+    });
+    return safeJson(res);
+  } catch {
+    return { ok: false, error: 'Network error' };
+  }
 }
 
 export async function apiGet(url) {
-  const res = await fetch(url, { credentials: 'same-origin' });
-  if (res.status === 401) return { ok: false, error: 'Not authenticated' };
-  return safeJson(res);
+  try {
+    const res = await fetch(API_BASE + url, { credentials: 'same-origin' });
+    if (res.status === 401) return { ok: false, error: 'Not authenticated' };
+    return safeJson(res);
+  } catch {
+    return { ok: false, error: 'Network error' };
+  }
 }

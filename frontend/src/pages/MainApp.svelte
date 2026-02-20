@@ -20,20 +20,23 @@
   import AlertOverlay from '../components/AlertOverlay.svelte';
   import BottomSheet from '../components/primitives/BottomSheet.svelte';
   import BottomTabBar from '../components/primitives/BottomTabBar.svelte';
+  import MapFab from '../components/primitives/MapFab.svelte';
+  import OnboardingOverlay from '../components/OnboardingOverlay.svelte';
   import { calculateDistance } from '../lib/tracking.js';
   import { GPSKalmanFilter } from '../lib/kalman.js';
   import { recordFix, resetMetrics } from '../lib/stores/metrics.js';
   import { bufferPosition, clearBuffer } from '../lib/offlineBuffer.js';
+  import { startGeo, stopGeo, warmUp, checkPermission, isNativePlatform } from '../lib/geoProvider.js';
 
   let activePanel = null;
   let sidebarTab = 'info';
   let sidebarCollapsed = false;
   let sosConfirmOpen = false;
-  let watchId = null;
-  let fallbackWatchId = null;
   let isMobile = false;
   let mobileTab = 'map';
   let sheetOpen = false;
+  let followMode = false;
+  let showOnboarding = false;
   let lastAcceptedFix = null;
   let lastEmittedFix = null;
   let lastEmitAt = 0;
@@ -48,6 +51,17 @@
   $: rightPanelOpen = activePanel === 'users' || activePanel === 'superAdmin';
   $: sidebarOpen = !sidebarCollapsed;
   $: hasNotification = $pendingIncomingRequests.length > 0;
+
+  // Wire SOS state to global CSS app-state for full-app red tint
+  $: {
+    if (typeof document !== 'undefined') {
+      if ($mySosActive) {
+        document.documentElement.dataset.appState = 'sos';
+      } else {
+        delete document.documentElement.dataset.appState;
+      }
+    }
+  }
 
   // When flying to a user on the map, auto-close panels/sheets so the map is visible
   $: if ($focusUser) {
@@ -94,14 +108,26 @@
     if (tab === 'map') {
       sheetOpen = false;
       activePanel = null;
-    } else if (tab === 'more') {
+    } else if (tab === 'people') {
+      sheetOpen = true;
+      sidebarTab = 'users';
+      activePanel = null;
+    } else if (tab === 'safety') {
       sheetOpen = true;
       sidebarTab = 'admin';
+      activePanel = null;
+    } else if (tab === 'sharing') {
+      sheetOpen = true;
+      sidebarTab = 'sharing';
+      activePanel = null;
+    } else if (tab === 'more') {
+      sheetOpen = true;
+      sidebarTab = 'info';
+      activePanel = null;
     } else {
       sheetOpen = true;
       sidebarTab = tab;
-      if (tab === 'users') activePanel = 'users';
-      else activePanel = null;
+      activePanel = null;
     }
   }
 
@@ -127,16 +153,97 @@
     socket.emit('profileUpdate', { batteryPct: null, deviceType: dt, connectionQuality });
   }
 
+  function applyFix(pos, forceEmit) {
+    const { latitude: rawLat, longitude: rawLng, accuracy, speed: rawSpeed } = pos;
+    const now = Date.now();
+    if (!Number.isFinite(rawLat) || !Number.isFinite(rawLng)) return;
+    // Fix D: reject zero/negative accuracy (some Android GPS drivers report 0 on cold start)
+    if (!Number.isFinite(accuracy) || accuracy <= 0) return;
+    if (lastAcceptedFix && accuracy > 20000) return;
+
+    if (rawLat === lastRawLat && rawLng === lastRawLng && !forceEmit) return;
+    lastRawLat = rawLat;
+    lastRawLng = rawLng;
+
+    // Fix B: reject coarse positions aggressively to prevent cell-tower fixes corrupting Kalman.
+    // But emit a stale-position heartbeat every 30s so contacts know the last seen location.
+    if (lastAcceptedFix && accuracy > 500) {
+      if (lastEmittedFix && now - lastEmitAt >= 30000) {
+        lastEmitAt = now;
+        const stalePayload = { latitude: lastEmittedFix.latitude, longitude: lastEmittedFix.longitude, speed: 0, formattedTime: new Date().toLocaleTimeString(), accuracy, timestamp: now };
+        if (socket.connected) socket.emit('position', stalePayload);
+        else bufferPosition(stalePayload);
+      }
+      return;
+    }
+    if (lastAcceptedFix && accuracy > 200 && now - lastAcceptedFix.ts < 5000) return;
+
+    if (lastAcceptedFix) {
+      const jumpDistance = calculateDistance(lastAcceptedFix.latitude, lastAcceptedFix.longitude, rawLat, rawLng);
+      const dtSec = Math.max((now - lastAcceptedFix.ts) / 1000, 1);
+      const impliedKmh = (jumpDistance / dtSec) * 3.6;
+      // Fix A: scale jump rejection with accuracy — poor-accuracy fixes are rejected at lower implied speeds
+      if (impliedKmh > 150 && accuracy > 30) return;
+      if (impliedKmh > 350) return; // absolute cap (faster than any ground vehicle)
+    }
+
+    const speed = rawSpeed != null && Number.isFinite(rawSpeed) ? Number((Math.max(0, rawSpeed) * 3.6).toFixed(1)) : 0;
+
+    gpsFilter.setSpeed(speed);
+    let latitude, longitude, kalmanCorrectionM;
+    if (!gpsFilter.isWarm && accuracy > 100) {
+      // First fix is too coarse to seed the Kalman state — use raw coords for local display
+      // but defer filter initialization until a sub-100m fix arrives.
+      latitude = rawLat;
+      longitude = rawLng;
+      kalmanCorrectionM = 0;
+    } else {
+      const filtered = gpsFilter.filter(rawLat, rawLng, accuracy);
+      latitude = filtered.lat;
+      longitude = filtered.lng;
+      kalmanCorrectionM = filtered.correctionM;
+    }
+
+    const formattedTime = new Date().toLocaleTimeString();
+    lastAcceptedFix = { latitude, longitude, ts: now };
+    myLocation.set({ latitude, longitude, speed, formattedTime, accuracy });
+    recordFix({ accuracy, kalmanCorrectionM, filterWarm: gpsFilter.isWarm });
+    if (accuracy > 150 && now - lastCoarseNoticeAt > 7000) {
+      lastCoarseNoticeAt = now;
+      banner.set({ type: 'info', text: `Location updated (low precision: ~${Math.round(accuracy)}m). Move near open sky for GPS-level accuracy.`, actions: [] });
+    } else if (accuracy <= 150) {
+      banner.set({ type: null, text: null, actions: [] });
+    }
+
+    const timeSinceLastEmit = now - lastEmitAt;
+    const distanceSinceLastEmit = lastEmittedFix
+      ? calculateDistance(lastEmittedFix.latitude, lastEmittedFix.longitude, latitude, longitude)
+      : Infinity;
+    const moving = speed > 1;
+    const shouldEmit = forceEmit ||
+      !lastEmittedFix ||
+      distanceSinceLastEmit >= 2 ||
+      (moving && timeSinceLastEmit >= 250) ||
+      timeSinceLastEmit >= 5000;
+
+    if (shouldEmit) {
+      lastEmittedFix = { latitude, longitude };
+      lastEmitAt = now;
+      const payload = { latitude, longitude, speed, formattedTime, accuracy, timestamp: now };
+      if (socket.connected) {
+        socket.emit('position', payload);
+      } else {
+        bufferPosition(payload);
+      }
+    }
+  }
+
   function startTracking() {
-    if (!navigator.geolocation) {
-      banner.set({ type: 'info', text: 'Geolocation is not supported on this device/browser.', actions: [] });
-      return;
-    }
     if (geoPermission === 'denied') {
-      banner.set({ type: 'info', text: 'Location permission is denied. Enable it in your browser settings, then try again.', actions: [] });
+      banner.set({ type: 'info', text: 'Location permission is denied. Enable it in your settings, then try again.', actions: [] });
       return;
     }
-    if (watchId != null) return;
+    if ($tracking) return;
     tracking.set(true);
     banner.set({ type: 'info', text: 'Starting high-accuracy tracking...', actions: [] });
     lastAcceptedFix = null;
@@ -144,130 +251,23 @@
     lastEmitAt = 0;
     lastCoarseNoticeAt = 0;
 
-    function applyFix(pos, forceEmit) {
-      const { latitude: rawLat, longitude: rawLng, accuracy, speed: rawSpeed } = pos.coords;
-      const now = Date.now();
-      if (!Number.isFinite(rawLat) || !Number.isFinite(rawLng)) return;
-      if (!Number.isFinite(accuracy)) return;
-      // After we have a fix, reject very coarse updates (>20 km).
-      // But ALWAYS accept the first fix regardless of accuracy — a rough
-      // position is far better than no position at all.
-      if (lastAcceptedFix && accuracy > 20000) return;
-
-      // Deduplication: skip if raw coords are identical to last accepted
-      if (rawLat === lastRawLat && rawLng === lastRawLng && !forceEmit) return;
-      lastRawLat = rawLat;
-      lastRawLng = rawLng;
-
-      // After first lock, ignore very coarse fixes for a short window
-      if (lastAcceptedFix && accuracy > 1200 && now - lastAcceptedFix.ts < 1500) return;
-
-      if (lastAcceptedFix) {
-        const jumpDistance = calculateDistance(lastAcceptedFix.latitude, lastAcceptedFix.longitude, rawLat, rawLng);
-        const dtSec = Math.max((now - lastAcceptedFix.ts) / 1000, 1);
-        const impliedKmh = (jumpDistance / dtSec) * 3.6;
-        if (impliedKmh > 500 && accuracy > 80) return;
-      }
-
-      const speed = rawSpeed != null && Number.isFinite(rawSpeed) ? Number((Math.max(0, rawSpeed) * 3.6).toFixed(1)) : 0;
-
-      // Kalman filter: auto-tune process noise based on speed, then smooth.
-      gpsFilter.setSpeed(speed);
-      const filtered = gpsFilter.filter(rawLat, rawLng, accuracy);
-      const latitude = filtered.lat;
-      const longitude = filtered.lng;
-
-      const formattedTime = new Date().toLocaleTimeString();
-      lastAcceptedFix = { latitude, longitude, ts: now };
-      myLocation.set({ latitude, longitude, speed, formattedTime, accuracy });
-      recordFix({ accuracy, kalmanCorrectionM: filtered.correctionM, filterWarm: gpsFilter.isWarm });
-      if (accuracy > 150 && now - lastCoarseNoticeAt > 7000) {
-        lastCoarseNoticeAt = now;
-        banner.set({ type: 'info', text: `Location updated (low precision: ~${Math.round(accuracy)}m). Move near open sky for GPS-level accuracy.`, actions: [] });
-      } else if (accuracy <= 150) {
-        banner.set({ type: null, text: null, actions: [] });
-      }
-
-      const timeSinceLastEmit = now - lastEmitAt;
-      const distanceSinceLastEmit = lastEmittedFix
-        ? calculateDistance(lastEmittedFix.latitude, lastEmittedFix.longitude, latitude, longitude)
-        : Infinity;
-      const moving = speed > 4;
-      const shouldEmit = forceEmit ||
-        !lastEmittedFix ||
-        distanceSinceLastEmit >= 2 ||
-        (moving && timeSinceLastEmit >= 450) ||
-        timeSinceLastEmit >= 900;
-
-      if (shouldEmit) {
-        lastEmittedFix = { latitude, longitude };
-        lastEmitAt = now;
-        const payload = { latitude, longitude, speed, formattedTime, accuracy, timestamp: now };
-        if (socket.connected) {
-          socket.emit('position', payload);
-        } else {
-          bufferPosition(payload);
-        }
-      }
-    }
-
-    function startFallbackWatch() {
-      if (fallbackWatchId != null) return;
-      fallbackWatchId = navigator.geolocation.watchPosition(
-        (pos) => applyFix(pos, !lastAcceptedFix),
-        () => {},
-        { enableHighAccuracy: false, timeout: 30000, maximumAge: 60000 }
-      );
-    }
-
-    // Immediate best-effort acquisition so the UI updates quickly on click.
-    // High-accuracy attempt
-    navigator.geolocation.getCurrentPosition(
-      (pos) => applyFix(pos, true),
-      () => {
-        // High-accuracy failed — try network/cached immediately
-        navigator.geolocation.getCurrentPosition(
-          (pos) => applyFix(pos, true),
-          () => {},
-          { enableHighAccuracy: false, timeout: 15000, maximumAge: 60000 }
-        );
-      },
-      { enableHighAccuracy: true, timeout: 5000, maximumAge: 5000 }
-    );
-    // Parallel low-accuracy attempt (also force-emit if we have no fix yet)
-    navigator.geolocation.getCurrentPosition(
-      (pos) => applyFix(pos, !lastAcceptedFix),
-      () => {},
-      { enableHighAccuracy: false, timeout: 15000, maximumAge: 60000 }
-    );
-    startFallbackWatch();
-
-    watchId = navigator.geolocation.watchPosition(
-      (pos) => applyFix(pos, false),
+    startGeo(
+      (pos, forceEmit) => applyFix(pos, forceEmit || !lastAcceptedFix),
       (err) => {
-        if (err.code === err.PERMISSION_DENIED) {
-          banner.set({ type: 'info', text: 'Location access denied. Enable permissions in browser settings.', actions: [] });
+        if (err.code === 1) {
+          banner.set({ type: 'info', text: 'Location access denied. Enable permissions in your settings.', actions: [] });
           stopTracking();
           return;
         }
-        if (err.code === err.TIMEOUT) {
-          if (!lastAcceptedFix) {
-            banner.set({ type: 'info', text: 'Waiting for GPS... fallback tracking is active.', actions: [] });
-          }
-          startFallbackWatch();
-          return;
+        if (!lastAcceptedFix) {
+          banner.set({ type: 'info', text: 'Waiting for GPS... fallback tracking is active.', actions: [] });
         }
-        banner.set({ type: 'info', text: 'Unable to get location right now. Move to open sky and retry.', actions: [] });
-      },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 2000 }
+      }
     );
   }
 
   function stopTracking() {
-    if (watchId != null) navigator.geolocation.clearWatch(watchId);
-    if (fallbackWatchId != null) navigator.geolocation.clearWatch(fallbackWatchId);
-    watchId = null;
-    fallbackWatchId = null;
+    stopGeo();
     tracking.set(false);
     lastAcceptedFix = null;
     lastEmittedFix = null;
@@ -284,7 +284,16 @@
     isMobile = window.innerWidth < 768;
   }
 
-  onMount(() => {
+  // Pre-warm AudioContext on first user gesture (required for Safari)
+  function prewarmAudio() {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      ctx.resume().then(() => ctx.close()).catch(() => {});
+    } catch (_) {}
+    document.removeEventListener('pointerdown', prewarmAudio);
+  }
+
+  onMount(async () => {
     if (!$authUser) { push('/login'); return; }
     setupSocketHandlers();
     pushProfile();
@@ -292,25 +301,53 @@
     checkMobile();
     window.addEventListener('resize', checkMobile);
 
-    // Proactive permission check
-    if (navigator.permissions && navigator.permissions.query) {
-      navigator.permissions.query({ name: 'geolocation' }).then(result => {
-        geoPermission = result.state;
-        result.addEventListener('change', () => { geoPermission = result.state; });
+    // Pre-warm AudioContext on first touch/click (Safari requires user gesture)
+    document.addEventListener('pointerdown', prewarmAudio, { once: true, passive: true });
+
+    // Show onboarding for first-time users (no share code seen before)
+    const onboardingKey = 'kinnect_onboarded_' + ($authUser?.userId || '');
+    if (!localStorage.getItem(onboardingKey)) {
+      setTimeout(() => { showOnboarding = true; }, 800);
+    }
+
+    // Fix C: await permission before tracking can start, so the denied-permission guard is reliable
+    geoPermission = await checkPermission();
+
+    // Warm up GPS hardware
+    warmUp();
+
+    // Fix H: guard against component unmounting before the dynamic import resolves
+    let mounted = true;
+    let appListenerCleanup = null;
+    if (isNativePlatform()) {
+      import('@capacitor/app').then(({ App }) => {
+        if (!mounted) return; // component already destroyed — skip adding listeners
+        const listeners = [];
+        listeners.push(App.addListener('appStateChange', ({ isActive }) => {
+          if (isActive) {
+            // Resumed from background — reconnect socket and warm up GPS
+            if (!socket.connected) socket.connect();
+            if ($tracking) warmUp();
+          }
+        }));
+        listeners.push(App.addListener('backButton', ({ canGoBack }) => {
+          if (sheetOpen) { sheetOpen = false; return; }
+          if (activePanel) { activePanel = null; return; }
+          if (canGoBack) { window.history.back(); }
+        }));
+        appListenerCleanup = () => {
+          Promise.all(listeners).then(handles => handles.forEach(h => { if (h && h.remove) h.remove(); }));
+        };
       }).catch(() => {});
     }
 
-    // Warm up GPS
-    navigator.geolocation?.getCurrentPosition(
-      () => {},
-      () => {},
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 }
-    );
-
     return () => {
+      mounted = false;
       clearInterval(profileInterval);
       stopTracking();
       window.removeEventListener('resize', checkMobile);
+      document.removeEventListener('pointerdown', prewarmAudio);
+      if (appListenerCleanup) appListenerCleanup();
     };
   });
 </script>
@@ -345,7 +382,7 @@
   </svelte:fragment>
 
   <svelte:fragment slot="map">
-    <MapView />
+    <MapView {followMode} />
   </svelte:fragment>
 
   <svelte:fragment slot="banner">
@@ -387,7 +424,7 @@
   <svelte:fragment slot="overlay">
     <AlertOverlay />
 
-    <!-- SOS FAB — always visible on map -->
+    <!-- SOS FAB — always visible bottom-left -->
     <button
       class="sos-fab"
       class:active={$mySosActive}
@@ -403,6 +440,17 @@
         <span class="sos-text">SOS</span>
       {/if}
     </button>
+
+    <!-- FAB cluster — bottom-right: track + center + follow -->
+    <div class="fab-wrapper" class:fab-wrapper--mobile={isMobile}>
+      <MapFab
+        isTracking={$tracking}
+        {followMode}
+        on:toggleTracking={() => $tracking ? stopTracking() : startTracking()}
+        on:centerOnMe={() => focusUser.set('__self__')}
+        on:toggleFollow={() => followMode = !followMode}
+      />
+    </div>
 
     <!-- SOS Confirmation Modal -->
     {#if sosConfirmOpen}
@@ -421,15 +469,16 @@
       </div>
     {/if}
 
-    {#if isMobile}
-      <button class="mobile-track-fab" class:tracking={$tracking} on:click={() => $tracking ? stopTracking() : startTracking()} aria-label={$tracking ? 'Stop tracking' : 'Start tracking'}>
-        {#if $tracking}
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
-        {:else}
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="10" r="3"/><path d="M12 2a8 8 0 0 0-8 8c0 1.892.402 3.13 1.5 4.5L12 22l6.5-7.5c1.098-1.37 1.5-2.608 1.5-4.5a8 8 0 0 0-8-8z"/></svg>
-        {/if}
-      </button>
-    {/if}
+    <!-- First-run onboarding -->
+    <OnboardingOverlay
+      visible={showOnboarding}
+      on:requestPermission={startTracking}
+      on:dismiss={() => {
+        showOnboarding = false;
+        const key = 'kinnect_onboarded_' + ($authUser?.userId || '');
+        localStorage.setItem(key, '1');
+      }}
+    />
   </svelte:fragment>
 </AppLayout>
 
@@ -480,6 +529,18 @@
     .sos-fab {
       bottom: calc(var(--bottom-tab-height, 56px) + var(--safe-bottom, 0px) + var(--space-4));
     }
+  }
+
+  /* ── MapFab wrapper ───────────────────────────────────────────────────── */
+  .fab-wrapper {
+    position: fixed;
+    bottom: var(--space-6);
+    right: var(--space-4);
+    z-index: calc(var(--z-panel, 100) + 1);
+  }
+
+  .fab-wrapper--mobile {
+    bottom: calc(var(--bottom-tab-height, 56px) + var(--safe-bottom, 0px) + var(--space-4));
   }
 
   /* ── SOS Confirmation Modal ───────────────────────────────────────────── */
@@ -554,40 +615,4 @@
   @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
   @keyframes scale-in { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: scale(1); } }
 
-  /* ── Track FAB ────────────────────────────────────────────────────────── */
-  .mobile-track-fab {
-    display: none;
-  }
-
-  @media (max-width: 767px) {
-    .mobile-track-fab {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      position: fixed;
-      bottom: calc(var(--bottom-tab-height) + var(--safe-bottom) + var(--space-4));
-      right: var(--space-4);
-      width: 56px;
-      height: 56px;
-      border-radius: 50%;
-      background: var(--primary-600);
-      color: white;
-      border: none;
-      cursor: pointer;
-      box-shadow: var(--shadow-lg), var(--shadow-primary);
-      z-index: calc(var(--z-panel) + 1);
-      transition:
-        transform var(--duration-fast) var(--ease-out),
-        background-color var(--duration-normal) var(--ease-out);
-    }
-
-    .mobile-track-fab:active {
-      transform: scale(0.92);
-    }
-
-    .mobile-track-fab.tracking {
-      background: var(--danger-500);
-      box-shadow: var(--shadow-lg), var(--shadow-danger);
-    }
-  }
 </style>
