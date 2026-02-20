@@ -20,6 +20,21 @@ function createSocketServer(server, sessionMiddleware) {
         parser: msgpackParser
     });
 
+    // ── Redis adapter (optional, enabled via REDIS_URL env var) ──────────
+    var redisUrl = process.env.REDIS_URL;
+    if (redisUrl) {
+        try {
+            var { createAdapter } = require("@socket.io/redis-adapter");
+            var { Redis } = require("ioredis");
+            var pubClient = new Redis(redisUrl);
+            var subClient = pubClient.duplicate();
+            io.adapter(createAdapter(pubClient, subClient));
+            log.info("Socket.io Redis adapter enabled");
+        } catch (err) {
+            log.warn({ err: err.message }, "Redis adapter not available, falling back to in-memory");
+        }
+    }
+
     // Share io reference with services that need it
     visibility.setIo(io);
     emitters.setIo(io);
@@ -51,7 +66,17 @@ function createSocketServer(server, sessionMiddleware) {
 
         // ── Unauthenticated or viewer connections (watch / live pages) ────
         var isViewer = socket.handshake && socket.handshake.auth && socket.handshake.auth.viewer;
-        if (!authUser || !authUser.id || isViewer) {
+        if (!authUser || !authUser.id) {
+            if (isViewer) {
+                publicHandlers.register(socket, safe);
+                return;
+            }
+            // Session expired for an authenticated client — disconnect with error
+            socket.emit("connect_error", { message: "Session expired" });
+            socket.disconnect(true);
+            return;
+        }
+        if (isViewer) {
             publicHandlers.register(socket, safe);
             return;
         }

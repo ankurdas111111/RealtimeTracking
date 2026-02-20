@@ -6,6 +6,8 @@
   import { toasts } from '../lib/stores/toast.js';
   import { onMount } from 'svelte';
 
+  let showPassword = false;
+  let showConfirm = false;
   let firstName = '';
   let lastName = '';
   let password = '';
@@ -141,11 +143,23 @@
   <div class="auth-bg"><div class="auth-bg-blob"></div></div>
 
   <div class="auth-brand">
-    <div class="auth-brand-logo">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="10" r="3"/><path d="M12 2a8 8 0 0 0-8 8c0 1.892.402 3.13 1.5 4.5L12 22l6.5-7.5c1.098-1.37 1.5-2.608 1.5-4.5a8 8 0 0 0-8-8z"/></svg>
+    <div class="auth-brand-inner">
+      <div class="auth-brand-logo">
+        <svg width="24" height="29" viewBox="0 0 20 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M10 1C5.029 1 1 5.029 1 10c0 6.938 8.25 13.1 9 14.1.75-1 9-7.162 9-14.1C19 5.029 14.971 1 10 1z" fill="white" fill-opacity="0.95"/>
+          <path d="M7 7v6M7 10l3.5-3M7 10l3.5 3" stroke="#4338ca" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+      <div class="auth-brand-badge">Kinnect = Kin + Connect</div>
+      <h1>Join your<br>family network</h1>
+      <p>Set up location sharing for your whole family in minutes. Private, secure, real-time.</p>
+      <ul class="auth-brand-features">
+        <li><span class="feature-check">&#10003;</span> Real-time GPS tracking</li>
+        <li><span class="feature-check">&#10003;</span> Guardian &amp; ward system</li>
+        <li><span class="feature-check">&#10003;</span> Private rooms for families</li>
+        <li><span class="feature-check">&#10003;</span> End-to-end secure sharing</li>
+      </ul>
     </div>
-    <h1>Kinnect</h1>
-    <p>Your family, always close. Track, share, and stay connected in real time.</p>
   </div>
 
   <div class="auth-form-area">
@@ -185,15 +199,24 @@
 
         <div class="auth-field">
           <label for="reg_password">Password</label>
+          <div class="input-wrapper">
           <input
             id="reg_password"
-            type="password"
+            type={showPassword ? 'text' : 'password'}
             class="input"
             class:is-invalid={passwordTouched && password.length > 0 && password.length < 6}
             bind:value={password}
             autocomplete="new-password"
             on:blur={() => passwordTouched = true}
           />
+          <button type="button" class="input-icon input-icon--toggle" on:click={() => showPassword = !showPassword} aria-label={showPassword ? 'Hide password' : 'Show password'}>
+            {#if showPassword}
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+            {:else}
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            {/if}
+          </button>
+          </div>
           {#if password}
             <div class="password-strength">
               <div class="strength-bar">
@@ -210,7 +233,7 @@
           <div class="input-wrapper">
             <input
               id="reg_confirm"
-              type="password"
+              type={showConfirm ? 'text' : 'password'}
               class="input"
               class:is-invalid={confirmError}
               class:is-valid={confirmTouched && confirmMatch}
@@ -220,6 +243,14 @@
             />
             {#if confirmTouched && confirmMatch}
               <span class="input-icon valid" aria-hidden="true">&#10003;</span>
+            {:else}
+              <button type="button" class="input-icon input-icon--toggle" on:click={() => showConfirm = !showConfirm} aria-label={showConfirm ? 'Hide password' : 'Show password'}>
+                {#if showConfirm}
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                {:else}
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                {/if}
+              </button>
             {/if}
           </div>
           {#if confirmError}
@@ -314,6 +345,19 @@
   .input-icon.valid {
     color: var(--success-500);
   }
+  .input-icon--toggle {
+    pointer-events: auto;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--text-tertiary);
+    display: flex;
+    align-items: center;
+    padding: 2px;
+    border-radius: 4px;
+    transition: color 0.15s;
+  }
+  .input-icon--toggle:hover { color: var(--text-secondary); }
   .is-valid {
     border-color: var(--success-400) !important;
   }

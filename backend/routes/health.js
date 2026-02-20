@@ -1,16 +1,20 @@
 var express = require("express");
 var perfHooks = require("perf_hooks");
+var rateLimit = require("express-rate-limit");
 var cache = require("../cache");
 var db = require("../lib/db");
 var auth = require("../middleware/auth");
+var visibility = require("../services/visibility");
 
 var router = express.Router();
+
+var healthLimiter = rateLimit({ windowMs: 60 * 1000, max: 30, standardHeaders: true, legacyHeaders: false });
 
 // ── Event-loop delay histogram (built-in, zero overhead) ─────────────────────
 var elHistogram = perfHooks.monitorEventLoopDelay({ resolution: 20 });
 elHistogram.enable();
 
-router.get("/health", async function(req, res) {
+router.get("/health", healthLimiter, async function(req, res) {
     var dbOk = false;
     try {
         await db.getPool().query("SELECT 1");
@@ -35,7 +39,8 @@ router.get("/health", async function(req, res) {
             rss: +(mem.rss / 1048576).toFixed(1),
             heapUsed: +(mem.heapUsed / 1048576).toFixed(1),
             heapTotal: +(mem.heapTotal / 1048576).toFixed(1)
-        }
+        },
+        positionQueueDepth: visibility.getPositionQueueDepth()
     });
 });
 

@@ -5,6 +5,7 @@
   import { io } from 'socket.io-client';
   import * as msgpackParser from 'socket.io-msgpack-parser';
   import { createMapIcon, escapeAttr, escHtml } from '../lib/tracking.js';
+  import { animateMarkerTo } from '../lib/markerInterpolator.js';
 
   export let params = {};
 
@@ -31,6 +32,9 @@
   let hasInit = false;
   let initTimeout = null;
   let connectionIssue = '';
+  let lastOriginTs = null;
+  let freshnessText = '';
+  let freshnessInterval = null;
   let tileLayer = null;
   let tileProviderIdx = 0;
   let tileErrorCount = 0;
@@ -129,7 +133,12 @@
     });
 
     socket.on('liveUpdate', (data) => {
-      if (data.user) { updateMarker(data.user); online = true; statusText = 'Tracking ' + sharedBy; }
+      if (data.user) {
+        updateMarker(data.user);
+        online = true;
+        statusText = 'Tracking ' + sharedBy;
+        if (data.user.timestamp) lastOriginTs = data.user.timestamp;
+      }
     });
 
     socket.on('liveSosUpdate', (data) => { if (data.active) showSos(data); else hideSos(); });
@@ -167,7 +176,10 @@
     if (!marker) {
       const icon = createMapIcon('var(--primary-500)', sharedBy[0]?.toUpperCase() || 'U', { markerType: 'contact' });
       marker = L.marker(ll, { icon }).addTo(map).bindPopup(popupHtml);
-    } else { marker.setLatLng(ll).setPopupContent(popupHtml); }
+    } else {
+      animateMarkerTo('live-target', marker, ll, 300);
+      marker.setPopupContent(popupHtml);
+    }
     if (!hasZoomed) { map.setView(ll, 15); hasZoomed = true; }
   }
 
@@ -201,11 +213,18 @@
     map = L.map(mapContainer, { center: [20, 78], zoom: 5, zoomControl: false, attributionControl: false });
     L.control.zoom({ position: 'bottomright' }).addTo(map);
     mountTileProvider(0);
+    freshnessInterval = setInterval(() => {
+      if (lastOriginTs) {
+        const sec = Math.round((Date.now() - lastOriginTs) / 1000);
+        freshnessText = sec < 2 ? 'live' : sec < 60 ? sec + 's ago' : Math.round(sec / 60) + 'm ago';
+      }
+    }, 1000);
   });
 
   onDestroy(() => {
     if (typeof window !== 'undefined') window.removeEventListener('resize', checkMobile);
     clearInitTimeout();
+    if (freshnessInterval) clearInterval(freshnessInterval);
     if (socket) socket.disconnect();
     if (sosAudioInterval) clearInterval(sosAudioInterval);
     if (map) map.remove();
@@ -249,6 +268,7 @@
     <div class="status-bar">
       <span class="status-dot" class:online class:offline={!online}></span>
       <span class="status-label">{statusText}</span>
+      {#if freshnessText}<span class="freshness" class:stale={freshnessText !== 'live'}>{freshnessText}</span>{/if}
       {#if checkinText}<span class="checkin" class:overdue={checkinOverdue}>{checkinText}</span>{/if}
     </div>
   {/if}
@@ -359,8 +379,18 @@
   .status-dot.online { background: var(--success-500); }
   .status-dot.offline { background: var(--gray-400); }
 
-  .checkin {
+  .freshness {
     margin-left: auto;
+    font-size: var(--text-xs);
+    color: var(--success-500);
+    font-weight: 600;
+  }
+  .freshness.stale {
+    color: var(--text-tertiary);
+    font-weight: 500;
+  }
+  .checkin {
+    margin-left: 0;
     font-size: var(--text-xs);
     color: var(--text-tertiary);
   }

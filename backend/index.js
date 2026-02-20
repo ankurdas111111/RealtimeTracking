@@ -6,6 +6,7 @@ var cache = require("./cache");
 var appModule = require("./app");
 var socketModule = require("./socket");
 var cleanup = require("./services/cleanup");
+var positionHistory = require("./services/positionHistory");
 
 var log = config.log;
 var server = appModule.server;
@@ -29,7 +30,9 @@ process.on("unhandledRejection", function(reason) {
 // ── Graceful shutdown ────────────────────────────────────────────────────────
 function shutdown(signal) {
     log.info({ signal: signal }, "Shutting down gracefully");
-    db.closePool().catch(function(e) { log.error({ err: e.message }, "Failed to close DB pool"); });
+    positionHistory.stop()
+      .then(function() { return db.closePool(); })
+      .catch(function(e) { log.error({ err: e.message }, "Shutdown cleanup error"); });
     server.close(function() {
         log.info("HTTP server closed");
         process.exit(0);
@@ -84,6 +87,8 @@ async function start() {
     }
     // Start cleanup intervals
     cleanup.startAll();
+    // Start async position history recorder (batch inserts + daily purge)
+    positionHistory.start();
 }
 
 if (process.env.NODE_ENV !== "test") {

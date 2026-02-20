@@ -26,6 +26,13 @@ function register(socket, safe) {
         if (!socketRateLimit(socket, "cancelSOS", 5)) return;
         var user = cache.activeUsers.get(socket.id);
         if (!user) return;
+        // Notify watch viewers before clearing the SOS (token is deleted by setSos)
+        if (user.sos.token) {
+            sos.getIo().to("watch:" + user.sos.token).emit("watchUpdate", {
+                user: emitters.sanitizeUser(user),
+                sos: { active: false }
+            });
+        }
         sos.setSos(user, false, null, null, null);
         sos.emitSosUpdate(user);
         log.info({ userId: user.userId }, "SOS cancelled");

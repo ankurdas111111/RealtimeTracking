@@ -162,8 +162,11 @@ function emitWatch(user) {
     _io.to("watch:" + user.sos.token).emit("watchUpdate", { user: emitters.sanitizeUser(user), sos: publicSos(user) });
 }
 
+function getIo() { return _io; }
+
 module.exports = {
     setIo: setIo,
+    getIo: getIo,
     publicSos: publicSos,
     setSos: setSos,
     emitSosUpdate: emitSosUpdate,

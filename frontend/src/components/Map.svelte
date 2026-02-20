@@ -4,7 +4,10 @@
   import 'leaflet/dist/leaflet.css';
   import { otherUsers, myLocation, mySocketId, mySafetyStatus, focusUser } from '../lib/stores/map.js';
   import { createMapIcon, escapeAttr } from '../lib/tracking.js';
-  import { animateMarkerTo, cancelAllAnimations } from '../lib/markerInterpolator.js';
+  import { animateMarkerTo, cancelAnimation, cancelAllAnimations } from '../lib/markerInterpolator.js';
+  import { getUserColor } from '../lib/getUserColor.js';
+
+  export let followMode = false;
 
   let mapContainer;
   let map;
@@ -18,6 +21,10 @@
   let pendingUsers = new Map();
   let accuracyCircle = null;
   let myGeofenceCircle = null;
+  // Fix M: popup HTML cache — avoid rebuilding unchanged popup content on every render
+  const popupCache = new Map(); // sid → { hash, html }
+  // Fix K: track last-rendered user references for diff-based rendering
+  const _lastRenderedUsers = new Map(); // sid → user object reference
   let tileLayer = null;
   let tileProviderIdx = 0;
   let tileErrorCount = 0;
@@ -57,7 +64,8 @@
       center: [20, 0],
       zoom: 3,
       zoomControl: false,
-      attributionControl: false
+      attributionControl: false,
+      preferCanvas: true
     });
 
     L.control.zoom({ position: isMobile ? 'bottomright' : 'topright' }).addTo(map);
@@ -66,6 +74,11 @@
     mountTileProvider(0);
 
     setTimeout(() => map.invalidateSize(), 200);
+
+    // Auto-disable follow mode when user manually pans/zooms
+    map.on('dragstart', () => {
+      followMode = false;
+    });
 
     const observer = new ResizeObserver(() => {
       if (map) map.invalidateSize();
@@ -121,10 +134,12 @@
         accuracyCircle.setRadius(accuracy);
       }
     }
-    if (!hasSetView) {
+    if (followMode) {
+      map.setView(pos, Math.max(map.getZoom(), 15), { animate: true, duration: 0.6 });
+    } else if (!hasSetView) {
       map.setView(pos, 15);
-      hasSetView = true;
     }
+    hasSetView = true;
   }
 
   // Geofence circle for self
@@ -243,16 +258,29 @@
     return html;
   }
 
+  // Fix M: cache popup HTML — only rebuild if display-relevant fields changed
+  function buildPopupCached(user) {
+    const hash = `${user.displayName}|${user.online}|${user.speed}|${user.accuracy}|${user.formattedTime}|${user.batteryPct}|${user.latitude?.toFixed(4)}|${user.longitude?.toFixed(4)}|${user.sos?.active}|${user.geofence?.enabled}|${user.checkIn?.lastCheckInAt}`;
+    const cached = popupCache.get(user.socketId);
+    if (cached && cached.hash === hash) return cached.html;
+    const html = buildPopup(user);
+    popupCache.set(user.socketId, { hash, html });
+    return html;
+  }
+
   function renderUserMarkers(current) {
     if (!map) return;
     const currentIds = new Set(current.keys());
 
-    // Remove stale markers and geofence circles
+    // Remove stale markers, geofence circles, and clear caches
     for (const [sid, marker] of markers) {
       if (!currentIds.has(sid)) {
+        cancelAnimation(sid); // Fix G: cancel RAF loop before removing marker
         map.removeLayer(marker);
         markers.delete(sid);
         markerState.delete(sid);
+        popupCache.delete(sid);     // Fix M: clear popup cache for departed user
+        _lastRenderedUsers.delete(sid); // Fix K: clear diff tracking
       }
     }
     for (const [sid, circle] of geofenceCircles) {
@@ -264,12 +292,17 @@
 
     for (const [sid, user] of current) {
       if (user.latitude == null || user.longitude == null) continue;
+
+      // Fix K: skip users whose object reference hasn't changed — they didn't update this batch
+      if (_lastRenderedUsers.get(sid) === user && markers.has(sid)) continue;
+      _lastRenderedUsers.set(sid, user);
+
       const pos = [user.latitude, user.longitude];
       const name = user.displayName || 'User';
       const firstLetter = name[0]?.toUpperCase() || '?';
 
       let markerType = 'contact';
-      let color = 'var(--success-500)';
+      let color = getUserColor(user.userId);
       if (user.sos?.active) {
         markerType = 'sos';
         color = 'var(--danger-500)';
@@ -280,7 +313,7 @@
 
       const iconKey = `${markerType}|${firstLetter}|${!!user.sos?.active}`;
       const icon = createMapIcon(color, firstLetter, { pulse: !!user.sos?.active, markerType });
-      const popupContent = buildPopup(user);
+      const popupContent = buildPopupCached(user); // Fix M: use cached popup
 
       const tooltipText = escapeAttr(name) + (user.sos?.active ? ' [SOS]' : '') + (user.online === false ? ' (offline)' : '');
 
@@ -501,13 +534,11 @@
   }
 
   /* ── Geofence circle ─────────────────────────────────────────────────── */
+  /* No animation — stroke-dashoffset animation ran on CPU compositor and
+     accumulated with N users' circles. The dashArray from Leaflet options
+     already provides the visual dashed style. */
   :global(.geofence-circle) {
-    animation: geofence-rotate 20s linear infinite;
-  }
-
-  @keyframes geofence-rotate {
-    from { stroke-dashoffset: 0; }
-    to { stroke-dashoffset: 100; }
+    opacity: 0.7;
   }
 
   /* ── Safety overlay ─────────────────────────────────────────────────── */

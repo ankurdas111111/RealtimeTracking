@@ -7,6 +7,7 @@
  */
 
 const animations = new Map();
+const _lastCallAt = new Map(); // tracks last call time per marker for adaptive duration
 
 /**
  * Smoothly animate a Leaflet marker from its current position to a new one.
@@ -14,9 +15,17 @@ const animations = new Map();
  * @param {string}        id          Unique key for this marker (e.g. socketId).
  * @param {L.Marker}      marker      The Leaflet marker to move.
  * @param {[number,number]} target    [lat, lng] destination.
- * @param {number}        [duration=300]  Animation duration in ms.
+ * @param {number}        [duration]  Animation duration in ms. If omitted, computed
+ *                                    from the interval since the previous call for this
+ *                                    marker (capped 100–600 ms). Explicit 0 = instant.
  */
-export function animateMarkerTo(id, marker, target, duration = 300) {
+export function animateMarkerTo(id, marker, target, duration) {
+  const now = performance.now();
+  if (duration === undefined) {
+    const last = _lastCallAt.get(id);
+    duration = last ? Math.min(Math.max((now - last) * 0.85, 100), 600) : 300;
+  }
+  _lastCallAt.set(id, now);
   const prev = animations.get(id);
   if (prev) cancelAnimationFrame(prev.raf);
 
@@ -67,6 +76,7 @@ export function cancelAnimation(id) {
     cancelAnimationFrame(state.raf);
     animations.delete(id);
   }
+  _lastCallAt.delete(id);
 }
 
 /**
@@ -77,4 +87,5 @@ export function cancelAllAnimations() {
     cancelAnimationFrame(state.raf);
   }
   animations.clear();
+  _lastCallAt.clear();
 }

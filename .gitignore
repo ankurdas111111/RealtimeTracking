@@ -12,3 +12,7 @@ sessions/
 coverage/
 *.sql
 frontend/dist/
+frontend/android/
+frontend/ios/
+**/*.md
+*.md

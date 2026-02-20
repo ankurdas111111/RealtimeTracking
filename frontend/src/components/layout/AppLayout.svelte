@@ -23,6 +23,8 @@
   });
 </script>
 
+<a href="#main-content" class="skip-link">Skip to map</a>
+
 <div
   class="app-layout"
   class:sidebar-open={sidebarOpen && !isMobile}
@@ -44,7 +46,7 @@
       </div>
     {/if}
 
-    <div class="layout-map">
+    <div class="layout-map" id="main-content">
       <slot name="map" />
       <slot name="banner" />
     </div>
