@@ -7,7 +7,7 @@
     <span class="banner-text">{$banner.text}</span>
     {#if $banner.actions}
       {#each $banner.actions as action}
-        <button class="btn btn-sm {action.kind || 'btn-secondary'}" on:click={action.onClick}>{action.label}</button>
+        <button class="btn btn-sm banner-action {action.kind || 'btn-secondary'}" on:click={action.onClick}>{action.label}</button>
       {/each}
     {/if}
     <button class="banner-close" aria-label="Dismiss banner" on:click={() => banner.set({ type: null, text: null, actions: [] })} on:keydown={(e) => ((e.key === 'Enter' || e.key === ' ') && banner.set({ type: null, text: null, actions: [] }))}>
@@ -19,7 +19,7 @@
 <style>
   .banner {
     position: fixed;
-    top: var(--navbar-height, 56px);
+    top: calc(var(--safe-top, 0px) + var(--navbar-height, 56px));
     left: 0;
     right: 0;
     z-index: 2500;
@@ -27,7 +27,7 @@
     align-items: center;
     justify-content: center;
     gap: var(--space-3);
-    padding: var(--space-2) var(--space-4);
+    padding: var(--space-2) var(--space-3);
     font-size: var(--text-sm);
     font-weight: 500;
     animation: slideDown 0.3s var(--ease-out);
@@ -42,10 +42,23 @@
   }
   .banner-text { flex: 1; text-align: center; }
   .banner-close {
-    background: none; border: none; cursor: pointer; color: inherit; padding: 2px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: inherit;
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     opacity: 0.7;
   }
   .banner-close:hover { opacity: 1; }
+  .banner-action {
+    min-height: 40px;
+    padding: 0 12px;
+  }
   @keyframes slideDown {
     from { transform: translateY(-100%); opacity: 0; }
     to { transform: translateY(0); opacity: 1; }

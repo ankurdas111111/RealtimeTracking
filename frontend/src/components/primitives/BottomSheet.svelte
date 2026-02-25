@@ -14,7 +14,7 @@
   let lastFocusedEl = null;
   let wasOpen = false;
 
-  const SNAP_PEEK = 0.75;
+  const SNAP_PEEK = 0.78;
   const SNAP_HALF = 0.50;
   const SNAP_FULL = 0.10;
 
@@ -219,12 +219,13 @@
   }
 
   .sheet-handle-area {
-    padding: var(--space-2) 0;
+    padding: var(--space-2) 0 var(--space-1);
     display: flex;
     justify-content: center;
     cursor: grab;
     flex-shrink: 0;
     touch-action: none;
+    min-height: 28px;
   }
 
   .sheet-handle-area:active {
@@ -232,10 +233,10 @@
   }
 
   .sheet-handle {
-    width: 36px;
-    height: 4px;
+    width: 44px;
+    height: 5px;
     background: var(--gray-300);
-    border-radius: 2px;
+    border-radius: 999px;
   }
 
   :global([data-theme="dark"]) .sheet-handle {

@@ -20,6 +20,13 @@ const _lastCallAt = new Map(); // tracks last call time per marker for adaptive 
  *                                    marker (capped 100–600 ms). Explicit 0 = instant.
  */
 export function animateMarkerTo(id, marker, target, duration) {
+  if (typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    marker.setLatLng(target);
+    animations.delete(id);
+    _lastCallAt.delete(id);
+    return;
+  }
+
   const now = performance.now();
   if (duration === undefined) {
     const last = _lastCallAt.get(id);

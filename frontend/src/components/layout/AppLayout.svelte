@@ -33,6 +33,10 @@
   class:mobile={isMobile}
   class:tablet={isTablet}
 >
+  {#if isMobile}
+    <slot name="topBar" />
+  {/if}
+
   {#if !isMobile}
     <div class="layout-navbar">
       <slot name="navbar" />
@@ -122,6 +126,7 @@
 
   .app-layout.mobile .layout-map {
     grid-column: 1;
+    padding-top: 108px;
   }
 
   .layout-tabs {

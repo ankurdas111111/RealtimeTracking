@@ -129,8 +129,8 @@
 
   /* Secondary FABs — 40px glass */
   .fab--secondary {
-    width: 40px;
-    height: 40px;
+    width: 44px;
+    height: 44px;
     background: var(--glass-1, rgba(255,255,255,0.85));
     backdrop-filter: var(--blur-sm, blur(16px));
     -webkit-backdrop-filter: var(--blur-sm, blur(16px));
@@ -148,5 +148,13 @@
     color: var(--primary-500, #6366f1);
     background: rgba(99, 102, 241, 0.12);
     box-shadow: 0 2px 12px rgba(99,102,241,0.25), 0 0 0 1px rgba(99,102,241,0.30);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .fab,
+    .fab--primary.tracking {
+      animation: none;
+      transition: none;
+    }
   }
 </style>

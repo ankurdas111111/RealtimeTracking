@@ -21,19 +21,24 @@
   import BottomSheet from '../components/primitives/BottomSheet.svelte';
   import BottomTabBar from '../components/primitives/BottomTabBar.svelte';
   import MapFab from '../components/primitives/MapFab.svelte';
+  import MobileTopBar from '../components/primitives/MobileTopBar.svelte';
+  import TrackingNowCard from '../components/primitives/TrackingNowCard.svelte';
   import OnboardingOverlay from '../components/OnboardingOverlay.svelte';
   import { calculateDistance } from '../lib/tracking.js';
   import { GPSKalmanFilter } from '../lib/kalman.js';
-  import { recordFix, resetMetrics } from '../lib/stores/metrics.js';
-  import { bufferPosition, clearBuffer } from '../lib/offlineBuffer.js';
+  import { recordFix, resetMetrics, trackingMetrics } from '../lib/stores/metrics.js';
+  import { bufferPosition, clearBuffer, bufferSize } from '../lib/offlineBuffer.js';
   import { startGeo, stopGeo, warmUp, checkPermission, isNativePlatform } from '../lib/geoProvider.js';
+  import { connectivityStore, setOnlineStatus, setSocketConnected, setBufferedCount } from '../lib/stores/connectivity.js';
+  import { uiShellStore, setMobileTab, setSheetOpen } from '../lib/stores/uiShell.js';
+  import { latencyMetrics } from '../lib/stores/latency.js';
 
   let activePanel = null;
   let sidebarTab = 'info';
   let sidebarCollapsed = false;
   let sosConfirmOpen = false;
   let isMobile = false;
-  let mobileTab = 'map';
+  let mobileTab = 'track';
   let sheetOpen = false;
   let followMode = false;
   let showOnboarding = false;
@@ -51,6 +56,8 @@
   $: rightPanelOpen = activePanel === 'users' || activePanel === 'superAdmin';
   $: sidebarOpen = !sidebarCollapsed;
   $: hasNotification = $pendingIncomingRequests.length > 0;
+  $: mobileTab = $uiShellStore.mobileTab;
+  $: sheetOpen = $uiShellStore.sheetOpen;
 
   // Wire SOS state to global CSS app-state for full-app red tint
   $: {
@@ -66,8 +73,8 @@
   // When flying to a user on the map, auto-close panels/sheets so the map is visible
   $: if ($focusUser) {
     if (isMobile) {
-      sheetOpen = false;
-      mobileTab = 'map';
+      setSheetOpen(false);
+      setMobileTab('track');
     }
     if (activePanel === 'users') {
       activePanel = null;
@@ -104,31 +111,18 @@
 
   function onMobileTabChange(e) {
     const tab = e.detail;
-    mobileTab = tab;
-    if (tab === 'map') {
-      sheetOpen = false;
-      activePanel = null;
-    } else if (tab === 'people') {
-      sheetOpen = true;
-      sidebarTab = 'users';
-      activePanel = null;
-    } else if (tab === 'safety') {
-      sheetOpen = true;
-      sidebarTab = 'admin';
-      activePanel = null;
-    } else if (tab === 'sharing') {
-      sheetOpen = true;
-      sidebarTab = 'sharing';
-      activePanel = null;
-    } else if (tab === 'more') {
-      sheetOpen = true;
+    setMobileTab(tab);
+    activePanel = null;
+    if (tab === 'track') {
       sidebarTab = 'info';
-      activePanel = null;
-    } else {
-      sheetOpen = true;
-      sidebarTab = tab;
-      activePanel = null;
+      setSheetOpen(true);
+      return;
     }
+    if (tab === 'people') sidebarTab = 'users';
+    else if (tab === 'share') sidebarTab = 'sharing';
+    else if (tab === 'safety') sidebarTab = 'admin';
+    else if (tab === 'me') sidebarTab = 'info';
+    setSheetOpen(true);
   }
 
   function pushProfile() {
@@ -153,6 +147,22 @@
     socket.emit('profileUpdate', { batteryPct: null, deviceType: dt, connectionQuality });
   }
 
+  function tapHaptic(style = 'light') {
+    if (typeof navigator === 'undefined' || typeof navigator.vibrate !== 'function') return;
+    if (style === 'medium') navigator.vibrate(22);
+    else navigator.vibrate(12);
+  }
+
+  function toggleTrackingAction() {
+    if ($tracking) {
+      tapHaptic('medium');
+      stopTracking();
+    } else {
+      tapHaptic('light');
+      startTracking();
+    }
+  }
+
   function applyFix(pos, forceEmit) {
     const { latitude: rawLat, longitude: rawLng, accuracy, speed: rawSpeed } = pos;
     const now = Date.now();
@@ -171,8 +181,13 @@
       if (lastEmittedFix && now - lastEmitAt >= 30000) {
         lastEmitAt = now;
         const stalePayload = { latitude: lastEmittedFix.latitude, longitude: lastEmittedFix.longitude, speed: 0, formattedTime: new Date().toLocaleTimeString(), accuracy, timestamp: now };
-        if (socket.connected) socket.emit('position', stalePayload);
-        else bufferPosition(stalePayload);
+        if (socket.connected) {
+          socket.emit('position', stalePayload);
+          setBufferedCount(bufferSize());
+        } else {
+          bufferPosition(stalePayload);
+          setBufferedCount(bufferSize());
+        }
       }
       return;
     }
@@ -232,8 +247,10 @@
       const payload = { latitude, longitude, speed, formattedTime, accuracy, timestamp: now };
       if (socket.connected) {
         socket.emit('position', payload);
+        setBufferedCount(bufferSize());
       } else {
         bufferPosition(payload);
+        setBufferedCount(bufferSize());
       }
     }
   }
@@ -245,6 +262,7 @@
     }
     if ($tracking) return;
     tracking.set(true);
+    setBufferedCount(bufferSize());
     banner.set({ type: 'info', text: 'Starting high-accuracy tracking...', actions: [] });
     lastAcceptedFix = null;
     lastEmittedFix = null;
@@ -278,10 +296,15 @@
     gpsFilter.reset();
     resetMetrics();
     clearBuffer();
+    setBufferedCount(0);
   }
 
   function checkMobile() {
     isMobile = window.innerWidth < 768;
+    if (isMobile) {
+      if (!$uiShellStore.mobileTab) setMobileTab('track');
+      if (!$uiShellStore.sheetOpen && $uiShellStore.mobileTab === 'track') setSheetOpen(true);
+    }
   }
 
   // Pre-warm AudioContext on first user gesture (required for Safari)
@@ -300,6 +323,24 @@
     const profileInterval = setInterval(pushProfile, 30000);
     checkMobile();
     window.addEventListener('resize', checkMobile);
+    setOnlineStatus(typeof navigator !== 'undefined' ? navigator.onLine : true);
+    setSocketConnected(socket.connected);
+    setBufferedCount(bufferSize());
+
+    const onOnline = () => setOnlineStatus(true);
+    const onOffline = () => setOnlineStatus(false);
+    const onSocketConnect = () => {
+      setSocketConnected(true);
+      setTimeout(() => setBufferedCount(bufferSize()), 700);
+    };
+    const onSocketDisconnect = () => {
+      setSocketConnected(false);
+      setBufferedCount(bufferSize());
+    };
+    window.addEventListener('online', onOnline);
+    window.addEventListener('offline', onOffline);
+    socket.on('connect', onSocketConnect);
+    socket.on('disconnect', onSocketDisconnect);
 
     // Pre-warm AudioContext on first touch/click (Safari requires user gesture)
     document.addEventListener('pointerdown', prewarmAudio, { once: true, passive: true });
@@ -331,7 +372,7 @@
           }
         }));
         listeners.push(App.addListener('backButton', ({ canGoBack }) => {
-          if (sheetOpen) { sheetOpen = false; return; }
+          if (sheetOpen) { setSheetOpen(false); return; }
           if (activePanel) { activePanel = null; return; }
           if (canGoBack) { window.history.back(); }
         }));
@@ -346,6 +387,10 @@
       clearInterval(profileInterval);
       stopTracking();
       window.removeEventListener('resize', checkMobile);
+      window.removeEventListener('online', onOnline);
+      window.removeEventListener('offline', onOffline);
+      socket.off('connect', onSocketConnect);
+      socket.off('disconnect', onSocketDisconnect);
       document.removeEventListener('pointerdown', prewarmAudio);
       if (appListenerCleanup) appListenerCleanup();
     };
@@ -353,12 +398,26 @@
 </script>
 
 <AppLayout {sidebarOpen} {rightPanelOpen}>
+  <svelte:fragment slot="topBar">
+    <MobileTopBar
+      activeTab={mobileTab}
+      trackingActive={$tracking}
+      {hasNotification}
+      lastAccuracy={$trackingMetrics.lastAccuracy}
+      latencyMs={$latencyMetrics.avgE2eMs}
+      isOnline={$connectivityStore.isOnline}
+      socketConnected={$connectivityStore.socketConnected}
+      bufferedCount={$connectivityStore.bufferedCount}
+      on:openMe={() => onMobileTabChange({ detail: 'me' })}
+    />
+  </svelte:fragment>
+
   <svelte:fragment slot="navbar">
     <Navbar
       {isAdmin}
       activePanel={activePanel || sidebarTab}
       on:togglePanel={onNavbarToggle}
-      on:toggleTracking={() => $tracking ? stopTracking() : startTracking()}
+      on:toggleTracking={toggleTrackingAction}
       isTracking={$tracking}
     />
   </svelte:fragment>
@@ -398,14 +457,41 @@
   </svelte:fragment>
 
   <svelte:fragment slot="bottomSheet">
-    <BottomSheet open={sheetOpen} title={sidebarTab === 'users' ? 'Users' : sidebarTab === 'info' ? 'Info' : sidebarTab === 'sharing' ? 'Sharing' : sidebarTab === 'admin' ? 'Admin' : ''} on:close={() => { sheetOpen = false; mobileTab = 'map'; }}>
-      {#if sidebarTab === 'info'}
+    <BottomSheet
+      open={sheetOpen}
+      title={mobileTab === 'track' ? 'Track' : mobileTab === 'people' ? 'People' : mobileTab === 'share' ? 'Share' : mobileTab === 'safety' ? 'Safety' : 'Me'}
+      on:close={() => {
+        setSheetOpen(false);
+      }}
+    >
+      {#if mobileTab === 'track'}
+        <TrackingNowCard
+          location={$myLocation}
+          trackingActive={$tracking}
+          bufferedCount={$connectivityStore.bufferedCount}
+          socketConnected={$connectivityStore.socketConnected}
+          on:toggleTracking={toggleTrackingAction}
+          on:centerOnMe={() => focusUser.set('__self__')}
+          on:toggleFollow={() => (followMode = !followMode)}
+        />
+      {:else if mobileTab === 'me'}
         <InfoPanel embedded={true} />
-      {:else if sidebarTab === 'sharing'}
+      {:else if mobileTab === 'share'}
         <SharingPanel embedded={true} />
-      {:else if sidebarTab === 'admin'}
+      {:else if mobileTab === 'safety'}
+        <div class="safety-quick-actions">
+          <button
+            class="btn"
+            class:btn-danger={!$mySosActive}
+            class:btn-secondary={$mySosActive}
+            on:click={() => ($mySosActive ? socket.emit('cancelSOS') : (sosConfirmOpen = true))}
+          >
+            {$mySosActive ? 'Cancel SOS' : 'Trigger SOS'}
+          </button>
+          <button class="btn btn-secondary" on:click={() => socket.emit('checkInAck')}>I'm OK</button>
+        </div>
         <AdminPanel embedded={true} />
-      {:else if sidebarTab === 'users'}
+      {:else if mobileTab === 'people'}
         <UsersList embedded={true} />
       {/if}
     </BottomSheet>
@@ -446,7 +532,7 @@
       <MapFab
         isTracking={$tracking}
         {followMode}
-        on:toggleTracking={() => $tracking ? stopTracking() : startTracking()}
+        on:toggleTracking={toggleTrackingAction}
         on:centerOnMe={() => focusUser.set('__self__')}
         on:toggleFollow={() => followMode = !followMode}
       />
@@ -483,6 +569,17 @@
 </AppLayout>
 
 <style>
+  .safety-quick-actions {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 10px;
+    flex-wrap: wrap;
+  }
+
+  .safety-quick-actions .btn {
+    min-height: 44px;
+  }
+
   /* ── SOS FAB ──────────────────────────────────────────────────────────── */
   .sos-fab {
     position: fixed;

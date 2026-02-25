@@ -2,9 +2,15 @@ import API_BASE from './env.js';
 
 let csrfToken = null;
 
+function buildApiUrl(path) {
+  const normalizedPath = String(path || '').startsWith('/') ? String(path || '') : '/' + String(path || '');
+  if (!API_BASE) return normalizedPath;
+  return API_BASE + normalizedPath;
+}
+
 export async function fetchCsrf() {
   try {
-    const res = await fetch(API_BASE + '/api/csrf', { credentials: 'include' });
+    const res = await fetch(buildApiUrl('/api/csrf'), { credentials: 'include' });
     if (res.ok) {
       const data = await res.json();
       csrfToken = data.csrfToken;
@@ -28,7 +34,7 @@ function safeJson(res) {
 export async function apiPost(url, body = {}) {
   try {
     if (!csrfToken) await fetchCsrf();
-    const res = await fetch(API_BASE + url, {
+    const res = await fetch(buildApiUrl(url), {
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json', 'x-csrf-token': csrfToken || '' },
@@ -42,7 +48,7 @@ export async function apiPost(url, body = {}) {
 
 export async function apiGet(url) {
   try {
-    const res = await fetch(API_BASE + url, { credentials: 'include' });
+    const res = await fetch(buildApiUrl(url), { credentials: 'include' });
     if (res.status === 401) return { ok: false, error: 'Not authenticated' };
     return safeJson(res);
   } catch {

@@ -16,7 +16,9 @@ const storedClientId = localStorage.getItem('clientId');
 const clientId = storedClientId || (crypto && crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + '-' + Math.random().toString(16).slice(2));
 if (!storedClientId) localStorage.setItem('clientId', clientId);
 
-export const socket = io(API_BASE || undefined, {
+const socketBase = API_BASE || undefined;
+
+export const socket = io(socketBase, {
   auth: { clientId },
   transports: ["websocket"],
   parser: msgpackParser,

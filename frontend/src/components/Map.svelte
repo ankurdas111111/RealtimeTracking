@@ -114,7 +114,7 @@
       myMarker = L.marker(pos, { icon, zIndexOffset: 1000 }).addTo(map);
       myMarker.bindPopup(selfPopup);
     } else {
-      animateMarkerTo('__self__', myMarker, pos, 150);
+      animateMarkerTo('__self__', myMarker, pos);
       myMarker.setPopupContent(selfPopup);
     }
     // Accuracy circle around own position
@@ -319,7 +319,7 @@
 
       if (markers.has(sid)) {
         const m = markers.get(sid);
-        animateMarkerTo(sid, m, pos, 300);
+        animateMarkerTo(sid, m, pos);
         // Only replace the icon when the visual actually changes to avoid
         // disrupting open popups/tooltips on every position update
         if (markerState.get(sid) !== iconKey) {
@@ -544,7 +544,7 @@
   /* ── Safety overlay ─────────────────────────────────────────────────── */
   .safety-overlay {
     position: absolute;
-    top: var(--space-3);
+    top: calc(var(--safe-top, 0px) + 92px);
     left: 50%;
     transform: translateX(-50%);
     z-index: 1000;

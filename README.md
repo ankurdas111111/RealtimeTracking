@@ -22,6 +22,6 @@ npm run build:android:prod -- https://your-backend.onrender.com
 npm run build:ios:prod -- https://your-backend.onrender.com
 ```
 
-The URL must be public HTTPS.
+The URL must be a public HTTPS origin (for example `https://your-backend.onrender.com`) with no trailing slash or path.
 
 
