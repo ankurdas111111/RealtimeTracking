@@ -39,7 +39,7 @@
 </script>
 
 {#if visible}
-  <div class="onboarding-backdrop" on:click|self={() => dispatch('dismiss')} role="dialog" aria-modal="true" aria-label="Get started">
+  <div class="onboarding-backdrop" on:click|self={() => dispatch('dismiss')} on:keydown={(e) => { if (e.key === 'Escape') dispatch('dismiss'); }} role="dialog" aria-modal="true" aria-label="Get started" tabindex="-1">
     <div class="onboarding-card">
       <!-- Step indicators -->
       <div class="step-indicators" aria-label="Step {step} of 2">

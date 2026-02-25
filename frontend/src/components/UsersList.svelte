@@ -39,6 +39,13 @@
     banner.set({ type: 'info', text: `Deleted ${user.displayName}`, actions: [] });
     setTimeout(() => banner.set({ type: null, text: null, actions: [] }), 1500);
   }
+
+  function onUserRowKeydown(event, socketId) {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      locateUser(socketId);
+    }
+  }
 </script>
 
 <div class="panel-shell panel-right panel-base" class:embedded-view={embedded} transition:fly={{ x: 400, duration: 250, easing: cubicOut }}>
@@ -71,7 +78,13 @@
       <p class="empty-state">No other users online</p>
     {:else}
       {#each userList as user (user.socketId)}
-        <button class="user-item user-item-btn" on:click={() => locateUser(user.socketId)}>
+        <div
+          class="user-item user-item-btn"
+          role="button"
+          tabindex="0"
+          on:click={() => locateUser(user.socketId)}
+          on:keydown={(e) => onUserRowKeydown(e, user.socketId)}
+        >
           <div class="user-meta">
             <div class="status-dot" class:online={user.online !== false} class:offline={user.online === false} class:sos={user.sos?.active}></div>
             <div>
@@ -92,7 +105,7 @@
               <button class="btn btn-danger btn-sm" on:click|stopPropagation={() => deleteUser(user)}>Delete</button>
             {/if}
           </div>
-        </button>
+        </div>
       {/each}
     {/if}
 

@@ -6,17 +6,17 @@
   "scripts": {
     "start": "node backend/index.js",
     "start:local": "npm run build && node backend/index.js",
-    "build": "npm run build:frontend",
+    "build": "VITE_TARGET=web npm run build:frontend",
     "build:frontend": "cd frontend && npx vite build",
     "dev:fe": "cd frontend && npx vite",
     "dev:be": "node backend/index.js",
     "test": "jest --forceExit --detectOpenHandles",
     "lint": "eslint backend/ test/",
-    "build:android": "cd frontend && npx vite build && npx cap sync android",
+    "build:android": "cd frontend && VITE_TARGET=capacitor npx vite build && npx cap sync android",
     "run:android": "cd frontend && npx cap run android",
     "apk:release": "cd frontend/android && ./gradlew clean assembleRelease",
     "aab:release": "cd frontend/android && ./gradlew clean bundleRelease",
-    "build:ios": "cd frontend && npx vite build && npx cap sync ios",
+    "build:ios": "cd frontend && VITE_TARGET=capacitor npx vite build && npx cap sync ios",
     "run:ios": "cd frontend && npx cap run ios"
   },
   "keywords": [
@@ -29,10 +29,14 @@
   "author": "",
   "license": "ISC",
   "engines": {
-    "node": ">=18"
+    "node": "20.x"
   },
   "dependencies": {
+    "@capacitor/app": "^8.0.1",
+    "@capacitor/core": "^8.1.0",
+    "@capacitor/geolocation": "^8.1.0",
     "@socket.io/redis-adapter": "^8.3.0",
+    "@sveltejs/vite-plugin-svelte": "^5.1.1",
     "bcrypt": "^6.0.0",
     "compression": "^1.8.1",
     "connect-pg-simple": "^10.0.0",
@@ -45,13 +49,12 @@
     "leaflet": "^1.9.4",
     "pg": "^8.18.0",
     "pino": "^9.14.0",
-    "socket.io-client": "^4.8.3",
     "socket.io": "^4.8.1",
+    "socket.io-client": "^4.8.3",
     "socket.io-msgpack-parser": "^3.0.2",
     "svelte": "^5.51.2",
     "svelte-spa-router": "^4.0.1",
-    "vite": "^6.4.1",
-    "@sveltejs/vite-plugin-svelte": "^5.1.1"
+    "vite": "^6.4.1"
   },
   "devDependencies": {
     "eslint": "^9.39.2",
