@@ -13,10 +13,12 @@
     "test": "jest --forceExit --detectOpenHandles",
     "lint": "eslint backend/ test/",
     "build:android": "cd frontend && VITE_TARGET=capacitor npx vite build && npx cap sync android",
+    "build:android:prod": "node scripts/build-mobile-with-api.cjs android",
     "run:android": "cd frontend && npx cap run android",
     "apk:release": "cd frontend/android && ./gradlew clean assembleRelease",
     "aab:release": "cd frontend/android && ./gradlew clean bundleRelease",
     "build:ios": "cd frontend && VITE_TARGET=capacitor npx vite build && npx cap sync ios",
+    "build:ios:prod": "node scripts/build-mobile-with-api.cjs ios",
     "run:ios": "cd frontend && npx cap run ios"
   },
   "keywords": [

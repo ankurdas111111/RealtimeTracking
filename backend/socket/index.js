@@ -7,12 +7,13 @@ var visibility = require("../services/visibility");
 var publicHandlers = require("./publicHandlers");
 var authHandlers = require("./authHandlers");
 var sosHandlers = require("./sosHandlers");
+var cors = require("../lib/cors");
 
 var log = config.log;
 
 function createSocketServer(server, sessionMiddleware) {
     var io = socketio(server, {
-        cors: { origin: false },
+        cors: { origin: Array.from(cors.allowedOrigins), credentials: true },
         pingTimeout: 20000,
         pingInterval: 25000,
         perMessageDeflate: { threshold: 1024 },

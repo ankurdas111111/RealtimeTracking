@@ -8,10 +8,25 @@ var pgSession = require("connect-pg-simple")(session);
 var helmet = require("helmet");
 var db = require("./lib/db");
 var csrfMiddleware = require("./middleware/csrf");
+var cors = require("./lib/cors");
 
 // ── Express app + HTTP server ────────────────────────────────────────────────
 var app = express();
 var server = http.createServer(app);
+
+// ── CORS for Capacitor/mobile clients ────────────────────────────────────────
+app.use(function(req, res, next) {
+    var origin = req.headers.origin;
+    if (origin && cors.isAllowedOrigin(origin)) {
+        res.setHeader("Access-Control-Allow-Origin", origin);
+        res.setHeader("Vary", "Origin");
+        res.setHeader("Access-Control-Allow-Credentials", "true");
+        res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
+        res.setHeader("Access-Control-Allow-Headers", "Content-Type,x-csrf-token");
+        if (req.method === "OPTIONS") return res.status(204).end();
+    }
+    next();
+});
 
 // ── HTTP compression (gzip/brotli for JSON APIs + SPA assets) ────────────────
 app.use(compression({ threshold: 512 }));
@@ -61,8 +76,8 @@ var sessionMiddleware = session({
     saveUninitialized: false,
     cookie: {
         httpOnly: true,
-        sameSite: "lax",
-        secure: process.env.NODE_ENV === "production" ? "auto" : false,
+        sameSite: process.env.SESSION_SAMESITE || (process.env.NODE_ENV === "production" ? "none" : "lax"),
+        secure: process.env.NODE_ENV === "production",
         maxAge: 7 * 24 * 60 * 60 * 1000
     }
 });

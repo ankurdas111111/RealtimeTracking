@@ -4,7 +4,7 @@ let csrfToken = null;
 
 export async function fetchCsrf() {
   try {
-    const res = await fetch(API_BASE + '/api/csrf', { credentials: 'same-origin' });
+    const res = await fetch(API_BASE + '/api/csrf', { credentials: 'include' });
     if (res.ok) {
       const data = await res.json();
       csrfToken = data.csrfToken;
@@ -30,7 +30,7 @@ export async function apiPost(url, body = {}) {
     if (!csrfToken) await fetchCsrf();
     const res = await fetch(API_BASE + url, {
       method: 'POST',
-      credentials: 'same-origin',
+      credentials: 'include',
       headers: { 'Content-Type': 'application/json', 'x-csrf-token': csrfToken || '' },
       body: JSON.stringify({ ...body, _csrf: csrfToken })
     });
@@ -42,7 +42,7 @@ export async function apiPost(url, body = {}) {
 
 export async function apiGet(url) {
   try {
-    const res = await fetch(API_BASE + url, { credentials: 'same-origin' });
+    const res = await fetch(API_BASE + url, { credentials: 'include' });
     if (res.status === 401) return { ok: false, error: 'Not authenticated' };
     return safeJson(res);
   } catch {
