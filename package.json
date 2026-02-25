@@ -4,8 +4,9 @@
   "description": "Real-time GPS location tracking with rooms, contacts, SOS, geofencing, and live sharing",
   "main": "backend/index.js",
   "scripts": {
-    "start": "npm run build && node backend/index.js",
-    "build": "cd frontend && npx vite build",
+    "start": "node backend/index.js",
+    "build": "npm run build:frontend",
+    "build:frontend": "cd frontend && npx vite build",
     "dev:fe": "cd frontend && npx vite",
     "dev:be": "node backend/index.js",
     "test": "jest --forceExit --detectOpenHandles",

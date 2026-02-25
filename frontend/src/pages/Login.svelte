@@ -23,8 +23,6 @@
   onMount(() => {
     if ($authUser) push('/');
     fetchCsrf();
-    const saved = localStorage.getItem('theme');
-    if (saved) document.documentElement.setAttribute('data-theme', saved);
   });
 
   function getCountry() { return COUNTRY_MAP[countryIso]; }
@@ -112,17 +110,17 @@
       <div class="auth-brand-logo">
         <svg width="24" height="29" viewBox="0 0 20 24" fill="none" xmlns="http://www.w3.org/2000/svg">
           <path d="M10 1C5.029 1 1 5.029 1 10c0 6.938 8.25 13.1 9 14.1.75-1 9-7.162 9-14.1C19 5.029 14.971 1 10 1z" fill="white" fill-opacity="0.95"/>
-          <path d="M7 7v6M7 10l3.5-3M7 10l3.5 3" stroke="#4338ca" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M7 7v6M7 10l3.5-3M7 10l3.5 3" stroke="rgba(255,255,255,0.90)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
       </div>
       <div class="auth-brand-badge">Kinnect = Kin + Connect</div>
       <h1>Keep your<br>family close</h1>
       <p>Real-time GPS location sharing for families. Stay connected, stay safe.</p>
       <ul class="auth-brand-features">
-        <li><span class="feature-check">&#10003;</span> Live location sharing</li>
-        <li><span class="feature-check">&#10003;</span> SOS emergency alerts</li>
-        <li><span class="feature-check">&#10003;</span> Safe zone notifications</li>
-        <li><span class="feature-check">&#10003;</span> Works on all devices</li>
+        <li><span class="feature-check" aria-hidden="true"></span> Live location sharing</li>
+        <li><span class="feature-check" aria-hidden="true"></span> SOS emergency alerts</li>
+        <li><span class="feature-check" aria-hidden="true"></span> Safe zone notifications</li>
+        <li><span class="feature-check" aria-hidden="true"></span> Works on all devices</li>
       </ul>
     </div>
   </div>

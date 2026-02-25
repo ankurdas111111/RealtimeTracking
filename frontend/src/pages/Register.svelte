@@ -147,17 +147,17 @@
       <div class="auth-brand-logo">
         <svg width="24" height="29" viewBox="0 0 20 24" fill="none" xmlns="http://www.w3.org/2000/svg">
           <path d="M10 1C5.029 1 1 5.029 1 10c0 6.938 8.25 13.1 9 14.1.75-1 9-7.162 9-14.1C19 5.029 14.971 1 10 1z" fill="white" fill-opacity="0.95"/>
-          <path d="M7 7v6M7 10l3.5-3M7 10l3.5 3" stroke="#4338ca" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M7 7v6M7 10l3.5-3M7 10l3.5 3" stroke="rgba(255,255,255,0.90)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
       </div>
       <div class="auth-brand-badge">Kinnect = Kin + Connect</div>
       <h1>Join your<br>family network</h1>
       <p>Set up location sharing for your whole family in minutes. Private, secure, real-time.</p>
       <ul class="auth-brand-features">
-        <li><span class="feature-check">&#10003;</span> Real-time GPS tracking</li>
-        <li><span class="feature-check">&#10003;</span> Guardian &amp; ward system</li>
-        <li><span class="feature-check">&#10003;</span> Private rooms for families</li>
-        <li><span class="feature-check">&#10003;</span> End-to-end secure sharing</li>
+        <li><span class="feature-check" aria-hidden="true"></span> Real-time GPS tracking</li>
+        <li><span class="feature-check" aria-hidden="true"></span> Guardian &amp; ward system</li>
+        <li><span class="feature-check" aria-hidden="true"></span> Private rooms for families</li>
+        <li><span class="feature-check" aria-hidden="true"></span> End-to-end secure sharing</li>
       </ul>
     </div>
   </div>
@@ -371,12 +371,10 @@
   .strength-bar {
     flex: 1;
     height: 4px;
-    background: var(--gray-200);
+    background: var(--neu-dark, #babecc);
     border-radius: 2px;
     overflow: hidden;
-  }
-  :global([data-theme="dark"]) .strength-bar {
-    background: var(--gray-700);
+    box-shadow: inset 1px 1px 2px rgba(0,0,0,0.10);
   }
   .strength-fill {
     height: 100%;

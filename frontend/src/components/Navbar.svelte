@@ -116,6 +116,30 @@
 
   .nav-toggle {
     position: relative;
+    transition:
+      transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1),
+      box-shadow 0.18s ease-out,
+      background 0.15s ease-out;
+  }
+
+  .nav-toggle:hover:not(.active) {
+    background: var(--glass-1, rgba(255, 255, 255, 0.72));
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    box-shadow:
+      0 4px 16px rgba(0, 0, 0, 0.12),
+      0 0 0 1px rgba(255, 255, 255, 0.50),
+      inset 0 1px 0 rgba(255, 255, 255, 0.75);
+    transform: translateY(-2px);
+  }
+
+  .nav-toggle:active {
+    transform: translateY(1px) !important;
+    background: rgba(0, 0, 0, 0.05) !important;
+    box-shadow:
+      inset 0 2px 5px rgba(0, 0, 0, 0.12),
+      0 1px 2px rgba(0, 0, 0, 0.06) !important;
+    transition-duration: 60ms !important;
   }
 
   .nav-toggle.active {
