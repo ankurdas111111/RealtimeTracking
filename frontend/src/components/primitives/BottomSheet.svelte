@@ -258,8 +258,12 @@
   }
 
   .sheet-body {
+    display: flex;
+    flex-direction: column;
     flex: 1;
-    overflow-y: auto;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
     -webkit-overflow-scrolling: touch;
     touch-action: pan-y;
     padding: 0 var(--space-4) var(--space-4);

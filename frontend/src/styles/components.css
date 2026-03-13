@@ -55,9 +55,46 @@
 
 .panel-body {
   flex: 1;
+  min-width: 0;
+  min-height: 0;
   overflow-y: auto;
+  overflow-x: hidden;
   padding: var(--space-3);
   -webkit-overflow-scrolling: touch;
+}
+
+/* Embedded panel in desktop sidebar */
+.sidebar-content > .panel-body {
+  flex: 1 1 0%;
+  min-height: 0;
+  max-height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  width: 100%;
+}
+
+/* Embedded panel in mobile bottom sheet
+   Avoid fixed 100% height to prevent bottom clipping with nested scroll/padding. */
+.sheet-body > .panel-body {
+  flex: 1 1 auto;
+  height: auto;
+  min-height: 0;
+  box-sizing: border-box;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  width: 100%;
+}
+
+/* Keep content clear of sidebar collapse affordance. */
+.sidebar-content > .panel-body {
+  padding-bottom: calc(var(--space-16) + var(--safe-bottom, 0px));
+}
+
+/* Keep content above mobile bottom tab bar when sheet is open. */
+.sheet-body > .panel-body {
+  padding-bottom: calc(var(--space-8) + var(--bottom-tab-height, 56px) + var(--safe-bottom, 0px));
 }
 
 .panel-list-body {
@@ -89,6 +126,7 @@
   border-bottom: 1px solid var(--border-subtle);
   gap: var(--space-2);
   flex-wrap: wrap;
+  min-width: 0;
   min-height: 44px;
   transition: background-color var(--duration-fast) var(--ease-out);
 }
@@ -113,8 +151,12 @@
 
 .list-item-actions {
   display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
   gap: var(--space-1);
-  flex-shrink: 0;
+  flex-shrink: 1;
+  min-width: 0;
+  max-width: 100%;
 }
 
 

@@ -586,11 +586,17 @@ body {
 /* Input group (input + button side by side) */
 .input-group {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--space-2);
   align-items: flex-start;
+  min-width: 0;
 }
 .input-group .input {
   flex: 1;
+  min-width: 0;
+}
+.input-group > * {
+  max-width: 100%;
   min-width: 0;
 }
 

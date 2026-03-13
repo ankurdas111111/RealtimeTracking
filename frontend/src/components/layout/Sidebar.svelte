@@ -94,6 +94,8 @@
   .sidebar {
     display: none;
     flex-direction: column;
+    height: 100%;
+    min-height: 0;
     background: var(--surface-2);
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
@@ -167,8 +169,12 @@
   }
 
   .sidebar-content {
+    display: flex;
+    flex-direction: column;
     flex: 1;
-    overflow-y: auto;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
     -webkit-overflow-scrolling: touch;
   }
 

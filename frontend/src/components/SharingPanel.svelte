@@ -28,10 +28,8 @@
   let joinCode = '';
   let contactCode = '';
   let loading = { createRoom: false, joinRoom: false, addContact: false };
-  let showLinkDropdown = false;
+  let selectedLinkDuration = '24h';
   let loadingTimers = {};
-  let linkMenuEl;
-  let linkMenuButton;
 
   function withLoading(key, fn) {
     if (loading[key]) return;
@@ -99,26 +97,13 @@
   }
   function createLiveLink(dur) {
     socket.emit('createLiveLink', { duration: dur === 'forever' ? null : dur });
-    showLinkDropdown = false;
   }
+  function generateLiveLink() { createLiveLink(selectedLinkDuration); }
   function copyLink(url) { navigator.clipboard.writeText(url).catch(() => {}); banner.set({ type: 'info', text: 'Link copied!', actions: [] }); setTimeout(() => banner.set({ type: null, text: null, actions: [] }), 1500); }
   function revokeLink(token) { socket.emit('revokeLiveLink', { token }); }
 
   function isGuardianOf(userId) { return $myGuardianData.asGuardian?.some(g => g.wardId === userId && g.status === 'active'); }
   function isWardOf(userId) { return $myGuardianData.asWard?.some(g => g.guardianId === userId && g.status === 'active'); }
-  function toggleLinkDropdown() { showLinkDropdown = !showLinkDropdown; }
-  function closeLinkDropdown() { showLinkDropdown = false; }
-
-  function onDocumentClick(e) {
-    if (!showLinkDropdown) return;
-    if (linkMenuEl && linkMenuEl.contains(e.target)) return;
-    if (linkMenuButton && linkMenuButton.contains(e.target)) return;
-    closeLinkDropdown();
-  }
-
-  function onDocumentKeydown(e) {
-    if (e.key === 'Escape' && showLinkDropdown) closeLinkDropdown();
-  }
 
   $: hasAny = ($myRooms.length > 0 || $myContacts.length > 0);
 
@@ -133,8 +118,6 @@
     socket.on('roomError', onRoomError);
     socket.on('contactAdded', onContactAdded);
     socket.on('contactError', onContactError);
-    document.addEventListener('click', onDocumentClick, true);
-    document.addEventListener('keydown', onDocumentKeydown);
 
     return () => {
       socket.off('roomCreated', onRoomCreated);
@@ -142,8 +125,6 @@
       socket.off('roomError', onRoomError);
       socket.off('contactAdded', onContactAdded);
       socket.off('contactError', onContactError);
-      document.removeEventListener('click', onDocumentClick, true);
-      document.removeEventListener('keydown', onDocumentKeydown);
       Object.keys(loadingTimers).forEach((k) => clearTimeout(loadingTimers[k]));
     };
   });
@@ -278,17 +259,15 @@
 
     <div class="section">
       <h4>Live Links</h4>
-      <div class="link-generate">
-        <button class="btn btn-primary btn-sm" bind:this={linkMenuButton} on:click={toggleLinkDropdown} aria-haspopup="menu" aria-expanded={showLinkDropdown}>Generate Link</button>
-        {#if showLinkDropdown}
-          <div class="link-dropdown" bind:this={linkMenuEl} role="menu" aria-label="Live link duration">
-            <button class="link-option" role="menuitem" on:click={() => createLiveLink('1h')}>1 Hour</button>
-            <button class="link-option" role="menuitem" on:click={() => createLiveLink('6h')}>6 Hours</button>
-            <button class="link-option" role="menuitem" on:click={() => createLiveLink('24h')}>24 Hours</button>
-            <button class="link-option" role="menuitem" on:click={() => createLiveLink('48h')}>48 Hours</button>
-            <button class="link-option" role="menuitem" on:click={() => createLiveLink('forever')}>Until Revoked</button>
-          </div>
-        {/if}
+      <div class="live-link-toolbar">
+        <select class="select live-duration-select" bind:value={selectedLinkDuration} aria-label="Live link duration">
+          <option value="1h">1 Hour</option>
+          <option value="6h">6 Hours</option>
+          <option value="24h">24 Hours</option>
+          <option value="48h">48 Hours</option>
+          <option value="forever">Until Revoked</option>
+        </select>
+        <button class="btn btn-primary btn-sm" on:click={generateLiveLink}>Generate Link</button>
       </div>
       <div class="list">
         {#if $myLiveLinks.length === 0}
@@ -296,12 +275,12 @@
         {:else}
           {#each $myLiveLinks as link}
             {@const url = window.location.origin + '/#/live/' + link.token}
-            <div class="list-item">
-              <div class="list-item-main">
-                <div class="mini ellipsis">{url}</div>
+            <div class="list-item live-link-item">
+              <div class="list-item-main live-link-main">
+                <div class="mini live-link-url" title={url}>{url}</div>
                 <div class="mini">Expires: {link.expiresAt ? new Date(link.expiresAt).toLocaleTimeString() : 'Until revoked'}</div>
               </div>
-              <div class="list-item-actions">
+              <div class="list-item-actions live-link-actions">
                 <button class="btn btn-secondary btn-sm" on:click={() => copyLink(url)}>Copy</button>
                 <button class="btn btn-danger btn-sm" on:click={() => revokeLink(link.token)}>Revoke</button>
               </div>
@@ -334,11 +313,43 @@
 <style>
   .list { margin-top: var(--space-2); }
   .list-empty { padding: var(--space-2) 0; }
-  .link-generate { position: relative; }
-  .link-dropdown { position: absolute; top: 100%; left: 0; background: var(--surface-2); border: 1px solid var(--border-default); border-radius: var(--radius-md); box-shadow: var(--shadow-lg); z-index: 100; margin-top: var(--space-1); overflow: hidden; min-width: 160px; }
-  .link-option { display: block; width: 100%; padding: var(--space-2) var(--space-4); border: none; background: none; text-align: left; cursor: pointer; font-size: var(--text-sm); color: var(--text-primary); }
-  .link-option:hover { background: var(--surface-hover); }
-  .link-option:focus-visible { outline: 2px solid var(--primary-500); outline-offset: -2px; }
+  .live-link-toolbar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-2);
+    width: 100%;
+  }
+  .live-duration-select {
+    width: 100%;
+    min-width: 0;
+  }
+  .live-link-toolbar .btn {
+    width: 100%;
+  }
+  .live-link-item {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-1);
+  }
+  .live-link-main {
+    min-width: 0;
+    width: 100%;
+  }
+  .live-link-url {
+    display: block;
+    max-width: 100%;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+  .live-link-actions {
+    display: flex;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+    gap: var(--space-1);
+    width: 100%;
+  }
   .onboarding { padding: var(--space-4); text-align: center; color: var(--text-tertiary); font-size: var(--text-sm); }
   .pending-admin-section {
     width: 100%;

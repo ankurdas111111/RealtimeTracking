@@ -3,7 +3,7 @@
   import L from 'leaflet';
   import 'leaflet/dist/leaflet.css';
   import { otherUsers, myLocation, mySocketId, mySafetyStatus, focusUser } from '../lib/stores/map.js';
-  import { createMapIcon, escapeAttr } from '../lib/tracking.js';
+  import { createMapIcon, escapeAttr, calculateDistance, formatDistance } from '../lib/tracking.js';
   import { animateMarkerTo, cancelAnimation, cancelAllAnimations } from '../lib/markerInterpolator.js';
   import { getUserColor } from '../lib/getUserColor.js';
 
@@ -191,6 +191,14 @@
     // Speed
     html += `<span style="font-weight:600;color:#374151">Speed</span><span>${user.speed || '0'} km/h</span>`;
 
+    // Distance from me
+    const myLoc = $myLocation;
+    if (myLoc && user.latitude != null && user.longitude != null) {
+      const dist = calculateDistance(myLoc.latitude, myLoc.longitude, user.latitude, user.longitude);
+      const formatted = formatDistance(dist);
+      if (formatted) html += `<span style="font-weight:600;color:#374151">Distance</span><span>${formatted}</span>`;
+    }
+
     // Accuracy
     if (user.accuracy != null) {
       const accColor = user.accuracy <= 15 ? '#22c55e' : user.accuracy <= 50 ? '#eab308' : '#ef4444';
@@ -260,7 +268,8 @@
 
   // Fix M: cache popup HTML — only rebuild if display-relevant fields changed
   function buildPopupCached(user) {
-    const hash = `${user.displayName}|${user.online}|${user.speed}|${user.accuracy}|${user.formattedTime}|${user.batteryPct}|${user.latitude?.toFixed(4)}|${user.longitude?.toFixed(4)}|${user.sos?.active}|${user.geofence?.enabled}|${user.checkIn?.lastCheckInAt}`;
+    const ml = $myLocation;
+    const hash = `${user.displayName}|${user.online}|${user.speed}|${user.accuracy}|${user.formattedTime}|${user.batteryPct}|${user.latitude?.toFixed(4)}|${user.longitude?.toFixed(4)}|${user.sos?.active}|${user.geofence?.enabled}|${user.checkIn?.lastCheckInAt}|${ml?.latitude?.toFixed(3)}|${ml?.longitude?.toFixed(3)}`;
     const cached = popupCache.get(user.socketId);
     if (cached && cached.hash === hash) return cached.html;
     const html = buildPopup(user);

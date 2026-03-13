@@ -1,7 +1,8 @@
 <script>
   import { getUserColor, getUserColorLight } from '../lib/getUserColor.js';
   import FreshnessChip from './primitives/FreshnessChip.svelte';
-  import { focusUser } from '../lib/stores/map.js';
+  import { focusUser, myLocation } from '../lib/stores/map.js';
+  import { calculateDistance, formatDistance } from '../lib/tracking.js';
 
   export let user = null;
   export let onClose = null;
@@ -12,6 +13,10 @@
   $: initials = user
     ? (user.displayName || '').split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) || '?'
     : '?';
+
+  $: distanceText = (user?.lat != null && user?.lng != null && $myLocation)
+    ? formatDistance(calculateDistance($myLocation.latitude, $myLocation.longitude, user.lat, user.lng))
+    : null;
 
   function locateOnMap() {
     if (user?.userId) focusUser.set(user.userId);
@@ -77,6 +82,12 @@
           <div class="stat">
             <span class="stat-label">Accuracy</span>
             <span class="stat-value">±{Math.round(user.accuracy)}m</span>
+          </div>
+        {/if}
+        {#if distanceText}
+          <div class="stat">
+            <span class="stat-label">Distance</span>
+            <span class="stat-value">{distanceText}</span>
           </div>
         {/if}
         {#if user.speed != null && user.speed > 0.5}

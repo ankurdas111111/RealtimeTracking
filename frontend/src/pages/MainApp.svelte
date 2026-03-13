@@ -628,6 +628,17 @@
     }
   }
 
+  /* Desktop/tablet: keep SOS FAB outside sidebar panel area */
+  :global(.app-layout.sidebar-open:not(.mobile)) .sos-fab {
+    left: calc(var(--sidebar-width, 400px) + var(--space-4));
+  }
+  :global(.app-layout.tablet.sidebar-open) .sos-fab {
+    left: calc(var(--sidebar-tablet, 320px) + var(--space-4));
+  }
+  :global(.app-layout.sidebar-closed:not(.mobile)) .sos-fab {
+    left: calc(var(--sidebar-collapsed, 56px) + var(--space-4));
+  }
+
   /* ── MapFab wrapper ───────────────────────────────────────────────────── */
   .fab-wrapper {
     position: fixed;

@@ -6,7 +6,7 @@
   import { authUser } from '../lib/stores/auth.js';
   import { socket } from '../lib/socket.js';
   import { banner } from '../lib/stores/sos.js';
-  import { formatTimestamp, escHtml } from '../lib/tracking.js';
+  import { formatTimestamp, escHtml, calculateDistance, formatDistance } from '../lib/tracking.js';
 
   function locateUser(socketId) {
     focusUser.set(socketId);
@@ -92,6 +92,9 @@
               {#if user.sos?.active}<span class="badge badge-danger badge-xs">SOS</span>{/if}
               <div class="mini">{onlineStatus(user)}</div>
               <div class="mini">Updated: {user.formattedTime || formatTimestamp(user.lastUpdate) || '-'}</div>
+              {#if $myLocation && user.latitude != null && user.longitude != null}
+                <div class="mini">{formatDistance(calculateDistance($myLocation.latitude, $myLocation.longitude, user.latitude, user.longitude)) || ''} away</div>
+              {/if}
             </div>
           </div>
           <div class="user-actions">

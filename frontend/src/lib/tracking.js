@@ -98,6 +98,12 @@ export function createGeofenceCircle(map, lat, lng, radiusM, options = {}) {
   }).addTo(map);
 }
 
+export function formatDistance(meters) {
+  if (meters == null || !isFinite(meters)) return null;
+  if (meters >= 1000) return (meters / 1000).toFixed(1) + ' km';
+  return Math.round(meters) + ' m';
+}
+
 export function formatTimestamp(timestamp) {
   return new Date(timestamp).toLocaleTimeString();
 }

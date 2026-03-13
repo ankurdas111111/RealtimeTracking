@@ -23,8 +23,6 @@
   });
 </script>
 
-<a href="#main-content" class="skip-link">Skip to map</a>
-
 <div
   class="app-layout"
   class:sidebar-open={sidebarOpen && !isMobile}
@@ -90,6 +88,7 @@
 
   .layout-body {
     flex: 1;
+    min-height: 0;
     display: grid;
     grid-template-columns: auto 1fr auto;
     grid-template-rows: 1fr;
@@ -100,6 +99,8 @@
   .layout-sidebar {
     grid-column: 1;
     grid-row: 1;
+    display: flex;
+    min-height: 0;
     z-index: var(--z-panel);
     overflow: hidden;
   }

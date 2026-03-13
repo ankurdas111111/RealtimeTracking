@@ -131,7 +131,7 @@
     <button class="btn btn-sm" class:btn-primary={followMode} class:btn-secondary={!followMode} on:click={() => followMode = !followMode} aria-label={followMode ? 'Disable auto-follow' : 'Enable auto-follow'}>
       {followMode ? 'Following' : 'Follow'}
     </button>
-    <a href="/#/login" class="btn btn-sm btn-secondary" aria-label="Open in Kinnect">Open in Kinnect</a>
+    <a href="/#/register" class="btn btn-sm btn-secondary" aria-label="Sign up for Kinnect">Sign up for Kinnect</a>
   </div>
 </div>
 

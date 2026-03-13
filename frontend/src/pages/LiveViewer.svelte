@@ -241,6 +241,7 @@
         <h2>Link Expired</h2>
         <p class="text-sm text-muted">This live share link is no longer active.</p>
         <a href="/#/login" class="btn btn-primary" style="margin-top:var(--space-4);">Open Kinnect</a>
+        <p class="text-sm text-muted" style="margin-top:var(--space-2);">Don't have an account? <a href="/#/register">Create one</a></p>
       </div>
     </div>
   {:else if showNameOverlay}
@@ -253,6 +254,7 @@
         <p class="text-sm text-muted" style="margin-bottom:var(--space-4);">Enter your name to start viewing</p>
         <input class="input input-lg" placeholder="Your name" bind:value={viewerName} on:keydown={e => e.key === 'Enter' && startViewing()} />
         <button class="btn btn-primary btn-lg" style="width:100%;margin-top:var(--space-3);" on:click={startViewing}>Start Viewing</button>
+        <p class="text-sm text-muted" style="margin-top:var(--space-3);">Want your own account? <a href="/#/register">Sign up</a> or <a href="/#/login">Log in</a></p>
       </div>
     </div>
   {/if}
@@ -271,6 +273,10 @@
       {#if freshnessText}<span class="freshness" class:stale={freshnessText !== 'live'}>{freshnessText}</span>{/if}
       {#if checkinText}<span class="checkin" class:overdue={checkinOverdue}>{checkinText}</span>{/if}
     </div>
+  {/if}
+
+  {#if !showNameOverlay && !expired && !sosActive}
+    <a href="/#/register" class="live-cta">Get Kinnect — Sign up free</a>
   {/if}
 
   {#if sosActive}
@@ -435,6 +441,29 @@
   .sos-content { flex: 1; min-width: 0; }
   .sos-text { font-weight: 700; }
   .sos-acks { font-size: var(--text-xs); opacity: 0.8; }
+
+  .live-cta {
+    position: absolute;
+    bottom: var(--space-4);
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 50;
+    background: var(--surface-2);
+    border: 1px solid var(--border-default);
+    border-radius: 999px;
+    padding: var(--space-1) var(--space-4);
+    font-size: var(--text-xs);
+    font-weight: 600;
+    color: var(--primary-600);
+    text-decoration: none;
+    box-shadow: var(--shadow-md);
+    backdrop-filter: blur(8px);
+    transition: background 0.15s, box-shadow 0.15s;
+  }
+  .live-cta:hover {
+    background: var(--primary-50, var(--surface-3));
+    box-shadow: var(--shadow-lg);
+  }
 
   @media (max-width: 767px) {
     .status-bar {
