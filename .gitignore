@@ -23,4 +23,5 @@ docs/
 # Go build artifacts
 backend/kinnect-server
 backend/kinnect-v3
+backend/server
 backend/*.exe
