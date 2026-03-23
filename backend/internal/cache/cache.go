@@ -256,15 +256,37 @@ func (c *Cache) Init(result *db.LoadAllResult) {
 // GetUserIDByEmail returns user ID for an email (case-insensitive).
 func (c *Cache) GetUserIDByEmail(email string) string {
 	c.mu.RLock()
-	defer c.mu.RUnlock()
-	return c.EmailIndex[strings.ToLower(email)]
+	userID := c.EmailIndex[strings.ToLower(email)]
+	c.mu.RUnlock()
+
+	if userID != "" {
+		return userID
+	}
+
+	// Not in index: try lazy loading from database
+	if c.lazyLoader != nil {
+		return c.lazyLoader.FindUserByEmail(strings.ToLower(email))
+	}
+
+	return ""
 }
 
 // GetUserIDByMobile returns user ID for a mobile number.
 func (c *Cache) GetUserIDByMobile(mobile string) string {
 	c.mu.RLock()
-	defer c.mu.RUnlock()
-	return c.MobileIndex[mobile]
+	userID := c.MobileIndex[mobile]
+	c.mu.RUnlock()
+
+	if userID != "" {
+		return userID
+	}
+
+	// Not in index: try lazy loading from database
+	if c.lazyLoader != nil {
+		return c.lazyLoader.FindUserByMobile(mobile)
+	}
+
+	return ""
 }
 
 // GetUserRole returns the role for a user.

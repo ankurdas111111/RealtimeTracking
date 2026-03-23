@@ -159,3 +159,31 @@ func (c *Cache) warmupRecentRooms(ctx context.Context, loader *LazyLoader) error
 	// For now, we load basic rooms
 	return nil
 }
+
+// FindUserByEmail finds a user by email address via database query
+func (l *LazyLoader) FindUserByEmail(email string) string {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	userID, err := db.FindUserByEmail(ctx, l.db, email)
+	if err != nil {
+		slog.Error("Failed to find user by email", "email", email, "error", err)
+		return ""
+	}
+
+	return userID
+}
+
+// FindUserByMobile finds a user by mobile number via database query
+func (l *LazyLoader) FindUserByMobile(mobile string) string {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	userID, err := db.FindUserByMobile(ctx, l.db, mobile)
+	if err != nil {
+		slog.Error("Failed to find user by mobile", "mobile", mobile, "error", err)
+		return ""
+	}
+
+	return userID
+}
