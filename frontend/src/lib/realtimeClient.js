@@ -4,7 +4,8 @@ const REALTIME_PROTOCOL = String(import.meta.env.VITE_REALTIME_PROTOCOL || 'ws')
 
 function buildWsUrl(base) {
   const origin = base || (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000');
-  const wsOrigin = origin.replace(/^http/i, 'ws');
+  // Ensure we use secure WebSocket (wss://) on HTTPS, regular ws:// on HTTP
+  let wsOrigin = origin.replace(/^https/i, 'wss').replace(/^http(?!s)/i, 'ws');
   return wsOrigin.endsWith('/ws') ? wsOrigin : wsOrigin + '/ws';
 }
 

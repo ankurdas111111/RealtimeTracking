@@ -9,3 +9,8 @@ services:
         value: production
       - key: DOCKER_BUILDKIT
         value: "1"
+      - key: PORT
+        value: "3000"
+    healthCheckPath: /health
+    healthCheckInterval: 30
+    autoDeploy: true

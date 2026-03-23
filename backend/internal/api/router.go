@@ -84,10 +84,12 @@ func NewRouter(cfg *config.Config, pool *db.Pool, c *cache.Cache, store *auth.Se
 		http.ServeFile(w, r, filepath.Join(absFrontend, "index.html"))
 	})
 
-	// Apply middleware: Gzip -> CORS -> Session
-	chain := GzipMiddleware(
-		CorsMiddleware(cfg.CORSAllowedOrigins, cfg.NodeEnv)(
-			auth.SessionMiddleware(store, cfg.SessionSecret, isProduction)(mux),
+	// Apply middleware: SecurityHeaders -> Gzip -> CORS -> Session
+	chain := SecurityHeadersMiddleware(isProduction)(
+		GzipMiddleware(
+			CorsMiddleware(cfg.CORSAllowedOrigins, cfg.NodeEnv)(
+				auth.SessionMiddleware(store, cfg.SessionSecret, isProduction)(mux),
+			),
 		),
 	)
 	return chain
@@ -155,6 +157,35 @@ func CorsMiddleware(allowedOrigins []string, nodeEnv string) func(http.Handler) 
 				w.WriteHeader(http.StatusNoContent)
 				return
 			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+// SecurityHeadersMiddleware adds security headers to all responses.
+// Sets headers to prevent XSS, clickjacking, content sniffing, and improve TLS security.
+func SecurityHeadersMiddleware(isProduction bool) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// Prevent XSS attacks
+			w.Header().Set("X-Content-Type-Options", "nosniff")
+			w.Header().Set("X-Frame-Options", "DENY")
+			w.Header().Set("X-XSS-Protection", "1; mode=block")
+
+			// Referrer policy
+			w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
+
+			// Permissions policy (formerly Feature-Policy)
+			w.Header().Set("Permissions-Policy", "geolocation=(self), microphone=(), camera=(), payment=()")
+
+			if isProduction {
+				// HSTS: Tell browsers to always use HTTPS (only on production)
+				w.Header().Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains; preload")
+
+				// Content Security Policy: restrictive default
+				w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' wss: https:; frame-ancestors 'none'")
+			}
+
 			next.ServeHTTP(w, r)
 		})
 	}
