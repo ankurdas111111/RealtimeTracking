@@ -111,7 +111,7 @@
     let selfPopupHtml = '<div style="min-width:180px;font-size:12px;line-height:1.5"><strong style="font-size:14px">You</strong>';
     selfPopupHtml += '<div style="display:grid;grid-template-columns:auto 1fr;gap:2px 10px;font-size:11px;color:#555;margin-top:6px">';
     selfPopupHtml += `<span style="font-weight:600;color:#374151">Online</span><span style="color:#22c55e;font-weight:600">● Connected</span>`;
-    selfPopupHtml += `<span style="font-weight:600;color:#374151">Speed</span><span>${speed || '0'} km/h</span>`;
+    selfPopupHtml += `<span style="font-weight:600;color:#374151">Speed</span><span>${speed >= 1 ? speed : 0} km/h</span>`;
     if (accuracy != null) {
       const accColor = accuracy <= 15 ? '#22c55e' : accuracy <= 50 ? '#eab308' : '#ef4444';
       selfPopupHtml += `<span style="font-weight:600;color:#374151">Accuracy</span><span style="color:${accColor}">~${Math.round(accuracy)}m</span>`;
@@ -165,7 +165,7 @@
     html += `<span style="width:7px;height:7px;border-radius:50%;background:${onlineColor};display:inline-block"></span>${onlineLabel}</span></div>`;
 
     html += `<div style="display:grid;grid-template-columns:auto 1fr;gap:2px 10px;font-size:11px;color:#555">`;
-    html += `<span style="font-weight:600;color:#374151">Speed</span><span>${user.speed || '0'} km/h</span>`;
+    html += `<span style="font-weight:600;color:#374151">Speed</span><span>${parseFloat(user.speed) >= 1 ? user.speed : 0} km/h</span>`;
 
     const myLoc = $myLocation;
     if (myLoc && user.latitude != null && user.longitude != null) {

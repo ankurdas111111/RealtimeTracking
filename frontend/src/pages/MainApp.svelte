@@ -205,7 +205,10 @@
       if (impliedKmh > 350) return; // absolute cap (faster than any ground vehicle)
     }
 
-    const speed = rawSpeed != null && Number.isFinite(rawSpeed) ? Number((Math.max(0, rawSpeed) * 3.6).toFixed(1)) : 0;
+    // Clamp GPS speed noise: phones report small non-zero speeds when stationary.
+    // Anything below 1 km/h is treated as 0 to avoid false "moving" readings.
+    const rawKmh = rawSpeed != null && Number.isFinite(rawSpeed) ? rawSpeed * 3.6 : 0;
+    const speed = rawKmh >= 1.0 ? Number(rawKmh.toFixed(1)) : 0;
 
     gpsFilter.setSpeed(speed);
     let latitude, longitude, kalmanCorrectionM;
