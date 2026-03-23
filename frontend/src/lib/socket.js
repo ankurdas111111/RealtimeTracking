@@ -65,8 +65,12 @@ export function setupSocketHandlers() {
   handlersRegistered = true;
   socket.on('connect', () => {
     connected = true;
-    mySocketId.set(socket.id);
     setBanner({ type: null, text: null, actions: [] });
+  });
+
+  // Server tells us our assigned socket ID — use this for self-filtering
+  socket.on('welcome', (data) => {
+    if (data?.socketId) mySocketId.set(data.socketId);
   });
 
   socket.on('disconnect', (reason) => {

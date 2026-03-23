@@ -238,10 +238,13 @@ func (h *Hub) handleRegister(c *Client) {
 		return
 	}
 
-	// 5. Build existingUsers list
+	// 5. Tell the client its server-assigned socket ID so it can filter itself out
+	c.Send("welcome", map[string]interface{}{"socketId": clientID})
+
+	// 6. Build existingUsers list
 	existingUsers := h.Cache.BuildExistingUsersPayload(userID)
 
-	// 6. Send existingUsers to new client
+	// 7. Send existingUsers to new client
 	c.Send("existingUsers", existingUsers)
 
 	// 7. Emit userConnected to visible users

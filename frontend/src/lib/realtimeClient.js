@@ -19,6 +19,8 @@ class WsCompatSocket {
     this.base = base;
     this.url = buildWsUrl(base);
     this.ws = null;
+    // Use the persistent clientId sent in auth as our socket ID —
+    // the backend uses this same value as the socket/client ID.
     this.id = null;
     this.connected = false;
     this.listeners = {};
@@ -71,7 +73,7 @@ class WsCompatSocket {
     this.ws = new WebSocket(this.url);
     this.ws.onopen = () => {
       this.connected = true;
-      this.id = randomId();
+      // id is set from the server's 'welcome' event, not here.
       if (this.reconnectAttempts > 0) this.fireIo('reconnect', this.reconnectAttempts);
       this.reconnectAttempts = 0;
       this.fire('connect');
