@@ -1,5 +1,4 @@
-# Build frontend and backend, serve with Go
-FROM node:20-alpine AS frontend-builder
+FROM node:20-slim AS frontend-builder
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm install
@@ -7,19 +6,17 @@ COPY frontend/ ./frontend/
 RUN npm run build:frontend
 
 FROM golang:1.25-alpine AS backend-builder
-RUN apk add --no-cache git
 WORKDIR /build
 COPY backend/go.mod backend/go.sum ./
 RUN go mod download
 COPY backend/ .
 RUN CGO_ENABLED=0 GOOS=linux go build -o server .
 
-FROM alpine:latest
+FROM alpine:3.19
 RUN apk add --no-cache ca-certificates
 WORKDIR /app
 COPY --from=backend-builder /build/server .
 COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
-ENV FRONTEND_DIR=/app/frontend/dist
-ENV PORT=3000
+ENV FRONTEND_DIR=/app/frontend/dist PORT=3000
 EXPOSE 3000
 CMD ["./server"]
