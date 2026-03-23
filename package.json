@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "Real-time GPS location tracking with rooms, contacts, SOS, geofencing, and live sharing",
   "scripts": {
-    "start": "cd backend && go build -o kinnect-server . && ./kinnect-server",
+    "start": "npm run build:frontend && cd backend && go build -o server . && ./server",
     "build": "VITE_TARGET=web npm run build:frontend",
     "build:frontend": "cd frontend && npx vite build",
     "dev:fe": "cd frontend && npx vite",

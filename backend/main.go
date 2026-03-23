@@ -13,6 +13,7 @@ import (
 	"kinnect-v3/internal/auth"
 	"kinnect-v3/internal/cache"
 	"kinnect-v3/internal/config"
+	cfglimits "kinnect-v3/internal/config"
 	"kinnect-v3/internal/db"
 	"kinnect-v3/internal/monitoring"
 	"kinnect-v3/internal/ws"
@@ -40,14 +41,32 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	result, err := db.LoadAll(ctx, pool.DB)
-	if err != nil {
-		slog.Error("Failed to load data from database", "error", err)
-		os.Exit(1)
-	}
-
+	// Initialize empty cache for lazy loading
 	c := cache.New()
+
+	// Set up lazy loader
+	lazyLoader := cache.NewLazyLoader(pool.DB)
+	c.SetLazyLoader(lazyLoader)
+
+	// Load only minimal data at startup (for free-tier optimization)
+	// Full LoadAll is commented out - uncomment if needed for backward compatibility
+	result := &db.LoadAllResult{
+		UsersCache:       make(map[string]*db.UserCacheEntry),
+		ShareCodes:       make(map[string]string),
+		EmailIndex:       make(map[string]string),
+		MobileIndex:      make(map[string]string),
+		Rooms:            make(map[string]*db.RoomEntry),
+		RoomMemberRoles:  make(map[string]map[string]*db.RoomMemberRole),
+		Contacts:         make(map[string]map[string]bool),
+		LiveTokens:       make(map[string]*db.LiveTokenEntry),
+		Guardianships:    make(map[string]map[string]*db.GuardianshipEntry),
+		RoomAdminRequests: make(map[string][]*db.RoomAdminRequestEntry),
+	}
 	c.Init(result)
+
+	// Warm up cache with recently active data in background
+	slog.Info("Starting cache warmup in background")
+	c.WarmupRecentData(ctx, lazyLoader)
 
 	// Initialize monitoring
 	metrics := monitoring.NewMetrics()
@@ -61,6 +80,14 @@ func main() {
 	go hub.StartPositionFlusher(ctx)
 	go hub.StartPositionPurger(ctx)
 	hub.StartCleanupRoutines(ctx)
+
+	// Start memory monitoring for free-tier optimization
+	go hub.MemoryMonitor.Start(ctx, hub)
+
+	slog.Info("Kinnect initialized",
+		"mode", cfg.NodeEnv,
+		"max_connections", cfglimits.MaxWebSocketConnections,
+		"max_db_connections", cfglimits.MaxDatabaseConnections)
 
 	store := auth.NewSessionStore(pool.DB)
 	handler := api.NewRouter(cfg, pool, c, store, hub)

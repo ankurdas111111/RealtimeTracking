@@ -27,6 +27,7 @@ func NewRouter(cfg *config.Config, pool *db.Pool, c *cache.Cache, store *auth.Se
 	pagesHandler := &PagesHandler{cache: c, db: pool.DB}
 	healthHandler := &HealthHandler{db: pool.DB, cache: c}
 	adminHandler := &AdminHandler{db: pool.DB, cache: c}
+	metricsHandler := NewMetricsHandler(hub)
 
 	// API routes
 	mux.Handle("POST /api/login", CsrfMiddleware(http.HandlerFunc(authHandler.Login)))
@@ -38,12 +39,19 @@ func NewRouter(cfg *config.Config, pool *db.Pool, c *cache.Cache, store *auth.Se
 	mux.Handle("GET /api/watch/{token}", http.HandlerFunc(pagesHandler.WatchToken))
 	mux.Handle("GET /api/health", http.HandlerFunc(healthHandler.Health))
 	mux.Handle("GET /api/diagnostics", http.HandlerFunc(healthHandler.HealthDb))
+	mux.Handle("GET /api/metrics", http.HandlerFunc(metricsHandler.GetMetrics))
 	mux.Handle("GET /health", http.HandlerFunc(healthHandler.Health))
 	mux.Handle("GET /health/db", RequireAuth(RequireAdmin(http.HandlerFunc(healthHandler.HealthDb))))
 	mux.Handle("POST /api/admin/promote", RequireAuth(RequireAdmin(CsrfMiddleware(http.HandlerFunc(adminHandler.Promote)))))
 
-	// WebSocket upgrade endpoint
+	// WebSocket upgrade endpoint with connection limiting
 	mux.HandleFunc("GET /ws", func(w http.ResponseWriter, r *http.Request) {
+		// Check connection limit before upgrade
+		if !hub.ConnLimiter.AcquireConnection() {
+			http.Error(w, "Connection limit reached", http.StatusTooManyRequests)
+			return
+		}
+
 		sess := auth.GetSession(r)
 		hub.HandleUpgrade(w, r, sess)
 	})

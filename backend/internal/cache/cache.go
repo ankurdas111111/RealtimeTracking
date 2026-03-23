@@ -123,6 +123,9 @@ type Cache struct {
 	LiveTokensByUser map[string]map[string]bool
 	UserRooms        map[string]map[string]bool
 	AdminClientIds   map[string]bool
+
+	// Lazy loading
+	lazyLoader *LazyLoader
 }
 
 // New creates a new Cache.
@@ -151,6 +154,7 @@ func New() *Cache {
 		LiveTokensByUser:  make(map[string]map[string]bool),
 		UserRooms:         make(map[string]map[string]bool),
 		AdminClientIds:    make(map[string]bool),
+		lazyLoader:        nil, // Set via SetLazyLoader
 	}
 }
 

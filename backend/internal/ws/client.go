@@ -79,6 +79,9 @@ func (c *Client) Role() string {
 // Handles ping/pong. Uses 10s read deadline, reset on each message.
 func (c *Client) ReadPump(ctx context.Context) {
 	defer func() {
+		// Release connection limit
+		c.hub.ConnLimiter.ReleaseConnection()
+
 		select {
 		case c.hub.unregister <- c:
 		case <-time.After(5 * time.Second):

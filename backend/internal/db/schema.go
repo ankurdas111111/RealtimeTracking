@@ -9,6 +9,7 @@ import (
 func InitDB(db *sql.DB) error {
 	statements := []string{
 		`CREATE EXTENSION IF NOT EXISTS "pgcrypto"`,
+		`CREATE EXTENSION IF NOT EXISTS "uuid-ossp"`,
 
 		`CREATE TABLE IF NOT EXISTS users (
 			id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -30,6 +31,23 @@ func InitDB(db *sql.DB) error {
 			"expire" TIMESTAMP(6) NOT NULL
 		)`,
 		`CREATE INDEX IF NOT EXISTS "IDX_session_expire" ON "session" ("expire")`,
+
+	// Active sessions table for resilience (Phase 4)
+	`CREATE TABLE IF NOT EXISTS active_sessions (
+		user_id       UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+		socket_id     VARCHAR(64),
+		connected_at  BIGINT NOT NULL,
+		last_update   BIGINT NOT NULL,
+		last_latitude DOUBLE PRECISION,
+		last_longitude DOUBLE PRECISION,
+		last_speed    VARCHAR(20),
+		battery_pct   INTEGER,
+		online        BOOLEAN DEFAULT true,
+		expires_at    BIGINT NOT NULL,
+		created_at    BIGINT DEFAULT extract(epoch from now())::bigint
+	)`,
+	`CREATE INDEX IF NOT EXISTS idx_active_sessions_expires ON active_sessions(expires_at)`,
+	`CREATE INDEX IF NOT EXISTS idx_active_sessions_online ON active_sessions(online)`,
 
 		`CREATE TABLE IF NOT EXISTS rooms (
 			id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),

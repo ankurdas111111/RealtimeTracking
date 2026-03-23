@@ -118,7 +118,7 @@ func (h *Hub) StartCleanupRoutines(ctx context.Context) {
 
 func (h *Hub) cleanupExpireOfflineUsers() {
 	now := time.Now().UnixMilli()
-	list := h.cache.CollectExpiredOfflineUsers(now)
+	list := h.Cache.CollectExpiredOfflineUsers(now)
 	for _, e := range list {
 		h.SendToClients(e.VisibleSids, "userDisconnect", e.SocketID)
 	}
@@ -126,7 +126,7 @@ func (h *Hub) cleanupExpireOfflineUsers() {
 
 func (h *Hub) cleanupExpireWatchTokens() {
 	now := time.Now().UnixMilli()
-	tokens := h.cache.CollectExpiredWatchTokens(now)
+	tokens := h.Cache.CollectExpiredWatchTokens(now)
 	payload := map[string]interface{}{"user": nil, "sos": map[string]interface{}{"active": false}}
 	for _, token := range tokens {
 		h.SendToGroup("watch:"+token, "watchUpdate", payload)
@@ -135,7 +135,7 @@ func (h *Hub) cleanupExpireWatchTokens() {
 
 func (h *Hub) cleanupExpireLiveTokens() {
 	now := time.Now().UnixMilli()
-	list := h.cache.CollectExpiredLiveTokens(now)
+	list := h.Cache.CollectExpiredLiveTokens(now)
 	for _, e := range list {
 		h.SendToGroup("live:"+e.Token, "liveExpired", map[string]interface{}{"message": "Link expired"})
 	}
@@ -148,7 +148,7 @@ func (h *Hub) cleanupExpireLiveTokens() {
 
 func (h *Hub) cleanupEmptyOldRooms() {
 	now := time.Now().UnixMilli()
-	_ = h.cache.CollectEmptyOldRooms(now, sevenDaysMs)
+	_ = h.Cache.CollectEmptyOldRooms(now, sevenDaysMs)
 	if err := db.DeleteEmptyOldRooms(context.Background(), h.pool.DB, sevenDaysMs); err != nil {
 		slog.Error("Failed to delete empty old rooms from DB", "error", err)
 	}
@@ -156,7 +156,7 @@ func (h *Hub) cleanupEmptyOldRooms() {
 
 func (h *Hub) cleanupExpireRoomAdmins() {
 	now := time.Now().UnixMilli()
-	list := h.cache.ExpireRoomAdminsInCache(now)
+	list := h.Cache.ExpireRoomAdminsInCache(now)
 	payload := func(roomCode, userID string) map[string]interface{} {
 		return map[string]interface{}{
 			"roomCode":   roomCode,
@@ -178,7 +178,7 @@ func (h *Hub) cleanupExpireRoomAdmins() {
 
 func (h *Hub) cleanupExpireGuardianships() {
 	now := time.Now().UnixMilli()
-	list := h.cache.CollectExpiredGuardianships(now)
+	list := h.Cache.CollectExpiredGuardianships(now)
 	updatePayload := func(gID, wID string) map[string]interface{} {
 		return map[string]interface{}{
 			"guardianId": gID,
@@ -205,7 +205,7 @@ func (h *Hub) cleanupExpireGuardianships() {
 
 func (h *Hub) cleanupCheckInOverdue() {
 	now := time.Now().UnixMilli()
-	h.cache.ForEachActiveUser(func(socketID string, user *cache.ActiveUser) {
+	h.Cache.ForEachActiveUser(func(socketID string, user *cache.ActiveUser) {
 		ch := &user.CheckIn
 		if !ch.Enabled {
 			return

@@ -16,6 +16,7 @@ type Config struct {
 	AdminEmail          string
 	LogLevel            string
 	CORSAllowedOrigins  []string
+	RedisURL            string // Optional: Redis connection URL from Aiven
 }
 
 const (
@@ -84,6 +85,7 @@ func Load() (*Config, error) {
 		AdminEmail:         os.Getenv("ADMIN_EMAIL"),
 		LogLevel:           logLevel,
 		CORSAllowedOrigins: corsOrigins,
+		RedisURL:           os.Getenv("REDIS_URL"), // Optional
 	}, nil
 }
 

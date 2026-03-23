@@ -26,7 +26,7 @@ func (h *Hub) handleTriggerSOS(c *Client, data json.RawMessage) {
 	if !c.CheckRateLimit("triggerSOS", 5) {
 		return
 	}
-	user := h.cache.GetActiveUser(c.ID())
+	user := h.Cache.GetActiveUser(c.ID())
 	if user == nil {
 		return
 	}
@@ -50,7 +50,7 @@ func (h *Hub) handleTriggerSOS(c *Client, data json.RawMessage) {
 	user.SOS.TokenExp = &exp
 
 	// Store watch token for public /watch/:token page
-	h.cache.SetWatchToken(token, user.SocketID, user.UserID, exp)
+	h.Cache.SetWatchToken(token, user.SocketID, user.UserID, exp)
 
 	// DB: live_tokens-style entry for watch - reuses watch token cache
 	// No separate DB table for watch tokens in schema; watch uses in-memory only
@@ -63,14 +63,14 @@ func (h *Hub) handleCancelSOS(c *Client, data json.RawMessage) {
 	if !c.CheckRateLimit("cancelSOS", 5) {
 		return
 	}
-	user := h.cache.GetActiveUser(c.ID())
+	user := h.Cache.GetActiveUser(c.ID())
 	if user == nil {
 		return
 	}
 	token := user.SOS.Token
 	h.setSos(user, false, "", "", "")
 	if token != nil {
-		h.cache.DeleteWatchToken(*token)
+		h.Cache.DeleteWatchToken(*token)
 	}
 	h.emitWatch(user)
 	payload := h.publicSos(user)
@@ -88,11 +88,11 @@ func (h *Hub) handleAckSOS(c *Client, data json.RawMessage) {
 	if socketId == "" {
 		return
 	}
-	target := h.cache.GetActiveUser(socketId)
+	target := h.Cache.GetActiveUser(socketId)
 	if target == nil {
 		return
 	}
-	ackerName := h.cache.GetDisplayName(c.UserID())
+	ackerName := h.Cache.GetDisplayName(c.UserID())
 	target.SOS.Acks = append(target.SOS.Acks, ackerName)
 	h.emitSosUpdate(target)
 	h.emitWatch(target)
@@ -103,12 +103,12 @@ func (h *Hub) handleCheckInAck(c *Client, data json.RawMessage) {
 	if !c.CheckRateLimit("checkInAck", 20) {
 		return
 	}
-	user := h.cache.GetActiveUser(c.ID())
+	user := h.Cache.GetActiveUser(c.ID())
 	if user == nil {
 		return
 	}
 	user.CheckIn.LastCheckInAt = time.Now().UnixMilli()
-	sanitized := h.cache.SanitizeUser(user)
+	sanitized := h.Cache.SanitizeUser(user)
 	sanitized["online"] = true
 	ci := map[string]interface{}{
 		"userId": user.UserID, "lastCheckInAt": user.CheckIn.LastCheckInAt,
@@ -123,7 +123,7 @@ func (h *Hub) handleSetCheckInRules(c *Client, data json.RawMessage) {
 		return
 	}
 	m := toMap(data)
-	user := h.cache.GetActiveUser(c.ID())
+	user := h.Cache.GetActiveUser(c.ID())
 	if user == nil {
 		return
 	}
@@ -136,7 +136,7 @@ func (h *Hub) handleSetCheckInRules(c *Client, data json.RawMessage) {
 	if v, ok := toInt(m["overdueMin"]); ok && v >= 0 {
 		user.CheckIn.OverdueMin = v
 	}
-	sanitized := h.cache.SanitizeUser(user)
+	sanitized := h.Cache.SanitizeUser(user)
 	sanitized["online"] = true
 	h.emitToVisibleAndSelf(user, "userUpdate", sanitized)
 }
@@ -147,7 +147,7 @@ func (h *Hub) handleSetGeofence(c *Client, data json.RawMessage) {
 		return
 	}
 	m := toMap(data)
-	user := h.cache.GetActiveUser(c.ID())
+	user := h.Cache.GetActiveUser(c.ID())
 	if user == nil {
 		return
 	}
@@ -163,7 +163,7 @@ func (h *Hub) handleSetGeofence(c *Client, data json.RawMessage) {
 	if v, ok := toFloat64(m["radiusM"]); ok && v >= 0 {
 		user.Geofence.RadiusM = v
 	}
-	sanitized := h.cache.SanitizeUser(user)
+	sanitized := h.Cache.SanitizeUser(user)
 	sanitized["online"] = true
 	h.emitToVisibleAndSelf(user, "userUpdate", sanitized)
 }
@@ -174,7 +174,7 @@ func (h *Hub) handleSetAutoSos(c *Client, data json.RawMessage) {
 		return
 	}
 	m := toMap(data)
-	user := h.cache.GetActiveUser(c.ID())
+	user := h.Cache.GetActiveUser(c.ID())
 	if user == nil {
 		return
 	}
@@ -190,7 +190,7 @@ func (h *Hub) handleSetAutoSos(c *Client, data json.RawMessage) {
 	if v, ok := m["geofence"].(bool); ok {
 		user.AutoSOS.Geofence = v
 	}
-	sanitized := h.cache.SanitizeUser(user)
+	sanitized := h.Cache.SanitizeUser(user)
 	sanitized["online"] = true
 	h.emitToVisibleAndSelf(user, "userUpdate", sanitized)
 }
@@ -204,12 +204,12 @@ func (h *Hub) handleLiveAckSOS(c *Client, data json.RawMessage) {
 	if token == "" {
 		return
 	}
-	entry := h.cache.GetLiveToken(token)
+	entry := h.Cache.GetLiveToken(token)
 	if entry == nil {
 		return
 	}
-	targetSid := h.cache.GetUserIdToSocketId(entry.UserID)
-	target := h.cache.GetActiveUser(targetSid)
+	targetSid := h.Cache.GetUserIdToSocketId(entry.UserID)
+	target := h.Cache.GetActiveUser(targetSid)
 	if target == nil {
 		// Target offline - could use offlineUsers
 		return

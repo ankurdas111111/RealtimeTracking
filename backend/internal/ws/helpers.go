@@ -15,16 +15,16 @@ const (
 
 // emitMyRooms builds and sends myRooms payload.
 func (h *Hub) emitMyRooms(c *Client, userID string) {
-	rooms := h.cache.GetUserRooms(userID)
+	rooms := h.Cache.GetUserRooms(userID)
 	payload := make([]map[string]interface{}, 0, len(rooms))
 	for _, code := range rooms {
-		room := h.cache.GetRoom(code)
+		room := h.Cache.GetRoom(code)
 		if room == nil {
 			continue
 		}
 		members := make([]map[string]interface{}, 0, len(room.Members))
 		for mid := range room.Members {
-			memberRole := h.cache.GetRoomMemberRole(code, mid)
+			memberRole := h.Cache.GetRoomMemberRole(code, mid)
 			memberRoomRole := "member"
 			var roleExpiresAt *int64
 			if memberRole != nil {
@@ -33,20 +33,20 @@ func (h *Hub) emitMyRooms(c *Client, userID string) {
 			}
 			members = append(members, map[string]interface{}{
 				"userId":       mid,
-				"displayName":  h.cache.GetDisplayName(mid),
+				"displayName":  h.Cache.GetDisplayName(mid),
 				"roomRole":     memberRoomRole,
 				"roleExpiresAt": roleExpiresAt,
 			})
 		}
 
 		myRole := "member"
-		if r := h.cache.GetRoomMemberRole(code, userID); r != nil {
+		if r := h.Cache.GetRoomMemberRole(code, userID); r != nil {
 			myRole = r.Role
 		}
 
 		// Include pending admin requests for this room.
 		pending := make([]map[string]interface{}, 0)
-		reqs := h.cache.GetRoomAdminRequests(code)
+		reqs := h.Cache.GetRoomAdminRequests(code)
 		totalEligible := len(room.Members) - 1
 		for _, req := range reqs {
 			if req == nil {
@@ -60,7 +60,7 @@ func (h *Hub) emitMyRooms(c *Client, userID string) {
 			}
 			pending = append(pending, map[string]interface{}{
 				"from":          req.From,
-				"fromName":      h.cache.GetDisplayName(req.From),
+				"fromName":      h.Cache.GetDisplayName(req.From),
 				"expiresIn":     req.ExpiresIn,
 				"approvals":     len(req.Approvals),
 				"denials":       len(req.Denials),
@@ -84,11 +84,11 @@ func (h *Hub) emitMyRooms(c *Client, userID string) {
 
 // emitMyContacts builds and sends myContacts payload.
 func (h *Hub) emitMyContacts(c *Client, userID string) {
-	rooms := h.cache.GetUserRooms(userID)
-	contacts := h.cache.GetContactsForUser(userID)
+	rooms := h.Cache.GetUserRooms(userID)
+	contacts := h.Cache.GetContactsForUser(userID)
 	payload := make([]map[string]interface{}, 0, len(contacts))
 	for _, uid := range contacts {
-		name := h.cache.GetDisplayName(uid)
+		name := h.Cache.GetDisplayName(uid)
 		payload = append(payload, map[string]interface{}{
 			"userId": uid, "displayName": name, "inRooms": h.userInRooms(uid, rooms),
 		})
@@ -98,8 +98,8 @@ func (h *Hub) emitMyContacts(c *Client, userID string) {
 
 // emitMyGuardians builds and sends myGuardians payload.
 func (h *Hub) emitMyGuardians(c *Client, userID string) {
-	asGuardian := h.cache.GetGuardianshipsAsGuardian(userID)
-	asWard := h.cache.GetGuardianshipsAsWard(userID)
+	asGuardian := h.Cache.GetGuardianshipsAsGuardian(userID)
+	asWard := h.Cache.GetGuardianshipsAsWard(userID)
 	manageable := h.getManageableUsers(userID)
 	payload := map[string]interface{}{
 		"asGuardian": asGuardian, "asWard": asWard, "manageable": manageable,
@@ -109,7 +109,7 @@ func (h *Hub) emitMyGuardians(c *Client, userID string) {
 
 // emitMyLiveLinks builds and sends myLiveLinks payload.
 func (h *Hub) emitMyLiveLinks(c *Client, userID string) {
-	tokens := h.cache.GetLiveTokensForUser(userID)
+	tokens := h.Cache.GetLiveTokensForUser(userID)
 	payload := make([]map[string]interface{}, 0, len(tokens))
 	for token, exp := range tokens {
 		payload = append(payload, map[string]interface{}{"token": token, "expiresAt": exp})
@@ -119,13 +119,13 @@ func (h *Hub) emitMyLiveLinks(c *Client, userID string) {
 
 // emitPendingRequests builds and sends pendingRequests payload.
 func (h *Hub) emitPendingRequests(c *Client, userID string) {
-	reqs := h.cache.BuildPendingRequestsPayload(userID)
+	reqs := h.Cache.BuildPendingRequestsPayload(userID)
 	c.Send("pendingRequests", reqs)
 }
 
 // emitToVisible sends event to all visible sockets (excludes self).
 func (h *Hub) emitToVisible(user *cache.ActiveUser, event string, data interface{}) {
-	sids := h.cache.GetVisibleSocketIDs(user)
+	sids := h.Cache.GetVisibleSocketIDs(user)
 	h.SendToClients(sids, event, data)
 }
 
@@ -137,8 +137,8 @@ func (h *Hub) emitToVisibleAndSelf(user *cache.ActiveUser, event string, data in
 
 // scheduleVisibilityRefresh re-sends visible user list if changed.
 func (h *Hub) scheduleVisibilityRefresh(c *Client, user *cache.ActiveUser) {
-	visible := h.cache.GetVisibleSet(user.UserID)
-	lastSet := h.cache.GetLastVisibleSet(c.ID())
+	visible := h.Cache.GetVisibleSet(user.UserID)
+	lastSet := h.Cache.GetLastVisibleSet(c.ID())
 	_ = visible
 	if lastSet != nil && len(lastSet) == len(visible) {
 		changed := false
@@ -152,33 +152,33 @@ func (h *Hub) scheduleVisibilityRefresh(c *Client, user *cache.ActiveUser) {
 			return
 		}
 	}
-	h.cache.SetLastVisibleSet(c.ID(), visible)
-	payload := h.cache.BuildExistingUsersPayload(user.UserID)
+	h.Cache.SetLastVisibleSet(c.ID(), visible)
+	payload := h.Cache.BuildExistingUsersPayload(user.UserID)
 	c.Send("visibilityRefresh", payload)
 }
 
 // getVisibleSet returns visible user IDs for a user.
 func (h *Hub) getVisibleSet(userID string) map[string]bool {
-	return h.cache.GetVisibleSet(userID)
+	return h.Cache.GetVisibleSet(userID)
 }
 
 // getVisibleSocketIDs returns socket IDs of visible users.
 func (h *Hub) getVisibleSocketIDs(user *cache.ActiveUser) []string {
-	return h.cache.GetVisibleSocketIDs(user)
+	return h.Cache.GetVisibleSocketIDs(user)
 }
 
 // invalidateVisibility clears visibility cache for user.
 func (h *Hub) invalidateVisibility(userID string) {
-	h.cache.InvalidateVisibility(userID)
+	h.Cache.InvalidateVisibility(userID)
 }
 
 // invalidateVisibilityForUsers clears visibility cache for multiple users.
 func (h *Hub) invalidateVisibilityForUsers(userIDs []string) {
 	for _, uid := range userIDs {
-		h.cache.InvalidateVisibility(uid)
+		h.Cache.InvalidateVisibility(uid)
 	}
 	// Also invalidate anyone whose cached set includes one of these
-	h.cache.InvalidateVisibilityForUsers(userIDs)
+	h.Cache.InvalidateVisibilityForUsers(userIDs)
 }
 
 // parseExpiresIn parses "1h","6h","24h","48h","7d","30d" to ms timestamp.
@@ -257,7 +257,7 @@ func (h *Hub) emitSosUpdate(user *cache.ActiveUser) {
 // emitLiveSos broadcasts SOS to live links.
 func (h *Hub) emitLiveSos(user *cache.ActiveUser) {
 	payload := h.publicSos(user)
-	tokens := h.cache.GetLiveTokensForUser(user.UserID)
+	tokens := h.Cache.GetLiveTokensForUser(user.UserID)
 	for token := range tokens {
 		h.SendToGroup("live:"+token, "liveSosUpdate", payload)
 	}
@@ -268,7 +268,7 @@ func (h *Hub) emitLiveCheckIn(user *cache.ActiveUser) {
 	ci := map[string]interface{}{
 		"userId": user.UserID, "lastCheckInAt": user.CheckIn.LastCheckInAt,
 	}
-	tokens := h.cache.GetLiveTokensForUser(user.UserID)
+	tokens := h.Cache.GetLiveTokensForUser(user.UserID)
 	for token := range tokens {
 		h.SendToGroup("live:"+token, "liveCheckInUpdate", ci)
 	}
@@ -342,12 +342,12 @@ func (h *Hub) maskMobile(mobile string) string {
 
 // getManageableUsers returns user IDs this user can manage (wards).
 func (h *Hub) getManageableUsers(userID string) []string {
-	return h.cache.GetManageableUsers(userID)
+	return h.Cache.GetManageableUsers(userID)
 }
 
 // emitAdminOverview builds and sends full admin overview.
 func (h *Hub) emitAdminOverview(c *Client) {
-	payload := h.cache.BuildAdminOverviewPayload()
+	payload := h.Cache.BuildAdminOverviewPayload()
 	c.Send("adminOverview", payload)
 }
 
@@ -388,7 +388,7 @@ func (h *Hub) flushPositionBroadcasts() {
 
 // userInRooms returns room codes from roomCodes that userID is a member of.
 func (h *Hub) userInRooms(userID string, roomCodes []string) []string {
-	userRooms := h.cache.GetUserRooms(userID)
+	userRooms := h.Cache.GetUserRooms(userID)
 	set := make(map[string]bool)
 	for _, c := range userRooms {
 		set[c] = true

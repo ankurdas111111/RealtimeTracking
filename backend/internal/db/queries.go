@@ -364,3 +364,79 @@ func coalesceStr(s, def string) string {
 	}
 	return def
 }
+
+// GetUserByID loads a single user from the database by ID (for lazy loading)
+func GetUserByID(ctx context.Context, db *sql.DB, userID string) (*UserCacheEntry, error) {
+	var id, fn, ln, role, shareCode string
+	var email, mobile sql.NullString
+	var ca int64
+	var lastLat, lastLng sql.NullFloat64
+	var lastSpeed sql.NullString
+	var lastUpdate sql.NullInt64
+
+	err := db.QueryRowContext(ctx,
+		`SELECT id, first_name, last_name, role, share_code, email, mobile, created_at,
+			last_latitude, last_longitude, last_speed, last_update
+		FROM users WHERE id = $1`,
+		userID).Scan(&id, &fn, &ln, &role, &shareCode, &email, &mobile, &ca,
+		&lastLat, &lastLng, &lastSpeed, &lastUpdate)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &UserCacheEntry{
+		FirstName:  fn,
+		LastName:   ln,
+		Role:       role,
+		ShareCode:  shareCode,
+		Email:      ptrOrNull(email),
+		Mobile:     ptrOrNull(mobile),
+		CreatedAt:  ca,
+		LastLat:    floatOrNull(lastLat),
+		LastLng:    floatOrNull(lastLng),
+		LastSpeed:  strOrNull(lastSpeed),
+		LastUpdate: int64OrNull(lastUpdate),
+	}, nil
+}
+
+// GetRoomByID loads a single room from the database by ID (for lazy loading)
+func GetRoomByID(ctx context.Context, db *sql.DB, roomID string) (*RoomEntry, error) {
+	var id, code, name string
+	var createdBy sql.NullString
+	var createdAt int64
+
+	err := db.QueryRowContext(ctx,
+		`SELECT id, code, name, created_by, created_at FROM rooms WHERE id = $1`,
+		roomID).Scan(&id, &code, &name, &createdBy, &createdAt)
+
+	if err != nil {
+		return nil, err
+	}
+
+	// Load room members
+	memberRows, err := db.QueryContext(ctx,
+		`SELECT user_id FROM room_members WHERE room_id = $1`,
+		roomID)
+	if err != nil {
+		return nil, err
+	}
+	defer memberRows.Close()
+
+	members := make(map[string]bool)
+	for memberRows.Next() {
+		var userID string
+		if err := memberRows.Scan(&userID); err != nil {
+			return nil, err
+		}
+		members[userID] = true
+	}
+
+	return &RoomEntry{
+		DbID:      id,
+		Name:      name,
+		CreatedBy: createdBy.String,
+		CreatedAt: createdAt,
+		Members:   members,
+	}, nil
+}

@@ -44,7 +44,7 @@ type positionBroadcast struct {
 
 // Hub is the central WebSocket hub — single goroutine multiplexes client management and broadcasts.
 type Hub struct {
-	cache    *cache.Cache
+	Cache    *cache.Cache
 	pool     *db.Pool
 	config   *config.Config
 	clients  map[string]*Client
@@ -64,13 +64,19 @@ type Hub struct {
 	positionTimer    *time.Timer
 	positionTimerMu  sync.Mutex
 
+	// Free-tier optimizations
+	ConnLimiter     *ConnectionLimiter
+	MemoryMonitor   *MemoryMonitor
+	ShutdownOnce    sync.Once
+	IsShuttingDown  bool
+
 	mu sync.RWMutex
 }
 
 // NewHub creates a new Hub.
 func NewHub(c *cache.Cache, p *db.Pool, cfg *config.Config) *Hub {
 	h := &Hub{
-		cache:            c,
+		Cache:            c,
 		pool:             p,
 		config:           cfg,
 		clients:          make(map[string]*Client),
@@ -80,6 +86,9 @@ func NewHub(c *cache.Cache, p *db.Pool, cfg *config.Config) *Hub {
 		broadcast:        make(chan *broadcastMsg, chanBroadcastBuf),
 		groups:           make(map[string]map[string]bool),
 		pendingPositions: make(map[string]positionBroadcast),
+		ConnLimiter:      NewConnectionLimiter(config.MaxWebSocketConnections),
+		MemoryMonitor:    NewMemoryMonitor(10 * time.Second),
+		IsShuttingDown:   false,
 	}
 	h.handlers = h.buildEventHandlers()
 	return h
@@ -153,34 +162,34 @@ func (h *Hub) handleRegister(c *Client) {
 	}
 	clientID := c.ID()
 
-	displayName := h.cache.GetDisplayName(userID)
+	displayName := h.Cache.GetDisplayName(userID)
 
 	// 1. Check if user already connected (evict old connection)
-	prevSid := h.cache.GetUserIdToSocketId(userID)
+	prevSid := h.Cache.GetUserIdToSocketId(userID)
 	if prevSid != "" && prevSid != clientID {
 		prevClient := h.GetClient(prevSid)
 		if prevClient != nil {
-			h.cache.DeleteAdminClientId(prevSid)
-			prevUser := h.cache.GetActiveUser(prevSid)
+			h.Cache.DeleteAdminClientId(prevSid)
+			prevUser := h.Cache.GetActiveUser(prevSid)
 			if prevUser != nil {
-				visibleSids := h.cache.GetVisibleSocketIDs(prevUser)
+				visibleSids := h.Cache.GetVisibleSocketIDs(prevUser)
 				for _, sid := range visibleSids {
 					h.SendToClient(sid, "userDisconnect", prevSid)
 				}
 			}
 			prevClient.Close()
 		}
-		h.cache.DeleteActiveUser(prevSid)
-		h.cache.DeleteLastVisibleSet(prevSid)
+		h.Cache.DeleteActiveUser(prevSid)
+		h.Cache.DeleteLastVisibleSet(prevSid)
 	}
 
 	// 2. Check if user is in offlineUsers (restore from offline)
 	restoredFromOffline := false
-	if offEntry := h.cache.GetOfflineUser(userID); offEntry != nil {
-		h.cache.DeleteOfflineUser(userID)
+	if offEntry := h.Cache.GetOfflineUser(userID); offEntry != nil {
+		h.Cache.DeleteOfflineUser(userID)
 		user := offEntry.User
 		oldSocketId := user.SocketID
-		visibleSids := h.cache.GetVisibleSocketIDs(user)
+		visibleSids := h.Cache.GetVisibleSocketIDs(user)
 		for _, sid := range visibleSids {
 			h.SendToClient(sid, "userDisconnect", oldSocketId)
 		}
@@ -188,11 +197,11 @@ func (h *Hub) handleRegister(c *Client) {
 		user.Role = role
 		user.DisplayName = displayName
 		user.Online = true
-		user.Rooms = h.cache.GetUserRooms(userID)
-		h.cache.SetActiveUser(clientID, user)
-		h.cache.SetUserIdToSocketId(userID, clientID)
+		user.Rooms = h.Cache.GetUserRooms(userID)
+		h.Cache.SetActiveUser(clientID, user)
+		h.Cache.SetUserIdToSocketId(userID, clientID)
 		if role == "admin" {
-			h.cache.SetAdminClientId(clientID, true)
+			h.Cache.SetAdminClientId(clientID, true)
 		}
 		restoredFromOffline = true
 	} else {
@@ -204,14 +213,14 @@ func (h *Hub) handleRegister(c *Client) {
 			Role:        role,
 			LastUpdate:  time.Now().UnixMilli(),
 			LastMoveAt:  time.Now().UnixMilli(),
-			Rooms:       h.cache.GetUserRooms(userID),
+			Rooms:       h.Cache.GetUserRooms(userID),
 			Online:      true,
 		}
 		user.Retention = &cache.Retention{Mode: "default", ClientID: clientID}
-		h.cache.SetActiveUser(clientID, user)
-		h.cache.SetUserIdToSocketId(userID, clientID)
+		h.Cache.SetActiveUser(clientID, user)
+		h.Cache.SetUserIdToSocketId(userID, clientID)
 		if role == "admin" {
-			h.cache.SetAdminClientId(clientID, true)
+			h.Cache.SetAdminClientId(clientID, true)
 		}
 	}
 
@@ -219,14 +228,14 @@ func (h *Hub) handleRegister(c *Client) {
 	h.clients[clientID] = c
 	h.mu.Unlock()
 
-	me := h.cache.GetActiveUser(clientID)
+	me := h.Cache.GetActiveUser(clientID)
 	if me == nil {
 		slog.Error("handleRegister: active user not found after register", "client", clientID)
 		return
 	}
 
 	// 5. Build existingUsers list
-	existingUsers := h.cache.BuildExistingUsersPayload(userID)
+	existingUsers := h.Cache.BuildExistingUsersPayload(userID)
 
 	// 6. Send existingUsers to new client
 	c.Send("existingUsers", existingUsers)
@@ -238,13 +247,13 @@ func (h *Hub) handleRegister(c *Client) {
 		"displayName": displayName,
 		"role":        role,
 	}
-	visibleSids := h.cache.GetVisibleSocketIDs(me)
+	visibleSids := h.Cache.GetVisibleSocketIDs(me)
 	for _, sid := range visibleSids {
 		h.SendToClient(sid, "userConnected", userConnectedData)
 	}
 
 	if restoredFromOffline {
-		sanitized := h.cache.SanitizeUser(me)
+		sanitized := h.Cache.SanitizeUser(me)
 		sanitized["online"] = true
 		c.Send("userUpdate", sanitized)
 		for _, sid := range visibleSids {
@@ -253,7 +262,7 @@ func (h *Hub) handleRegister(c *Client) {
 	}
 
 	// 8. Send myShareCode, myRooms, myContacts, myGuardians, myLiveLinks, pendingRequests
-	shareCode, email, mobile := h.cache.GetShareCodeInfo(userID)
+	shareCode, email, mobile := h.Cache.GetShareCodeInfo(userID)
 	c.Send("myShareCode", map[string]interface{}{
 		"shareCode": shareCode,
 		"email":     email,
@@ -274,28 +283,28 @@ func (h *Hub) handleUnregister(c *Client) {
 	h.leaveAllGroupsLocked(clientID)
 	h.mu.Unlock()
 
-	user := h.cache.GetActiveUser(clientID)
+	user := h.Cache.GetActiveUser(clientID)
 	if user == nil {
 		return
 	}
 
-	h.cache.DeleteLastPositionAt(clientID)
-	h.cache.DeleteLastDbSaveAt(user.UserID)
-	h.cache.DeleteLastVisibleSet(clientID)
-	h.cache.DeleteAdminClientId(clientID)
+	h.Cache.DeleteLastPositionAt(clientID)
+	h.Cache.DeleteLastDbSaveAt(user.UserID)
+	h.Cache.DeleteLastVisibleSet(clientID)
+	h.Cache.DeleteAdminClientId(clientID)
 
 	if user.ForceDelete {
-		h.cache.DeleteActiveUser(clientID)
-		h.cache.DeleteOfflineUser(user.UserID)
-		visibleSids := h.cache.GetVisibleSocketIDs(user)
+		h.Cache.DeleteActiveUser(clientID)
+		h.Cache.DeleteOfflineUser(user.UserID)
+		visibleSids := h.Cache.GetVisibleSocketIDs(user)
 		for _, sid := range visibleSids {
 			h.SendToClient(sid, "userDisconnect", clientID)
 		}
 		return
 	}
 
-	h.cache.DeleteActiveUser(clientID)
-	h.cache.DeleteUserIdToSocketId(user.UserID)
+	h.Cache.DeleteActiveUser(clientID)
+	h.Cache.DeleteUserIdToSocketId(user.UserID)
 
 	// Retention mode
 	var expiresAt *int64
@@ -315,12 +324,12 @@ func (h *Hub) handleUnregister(c *Client) {
 	}
 
 	user.Online = false
-	h.cache.SetOfflineUser(user.UserID, &cache.OfflineEntry{User: user, ExpiresAt: expiresAt})
+	h.Cache.SetOfflineUser(user.UserID, &cache.OfflineEntry{User: user, ExpiresAt: expiresAt})
 
-	sanitized := h.cache.SanitizeUser(user)
+	sanitized := h.Cache.SanitizeUser(user)
 	sanitized["online"] = false
 	sanitized["offlineExpiresAt"] = expiresAt
-	visibleSids := h.cache.GetVisibleSocketIDs(user)
+	visibleSids := h.Cache.GetVisibleSocketIDs(user)
 	for _, sid := range visibleSids {
 		h.SendToClient(sid, "userOffline", sanitized)
 	}
@@ -425,7 +434,7 @@ func (h *Hub) GetClient(id string) *Client {
 
 // GetClientByUserID returns the client for a user ID, or nil.
 func (h *Hub) GetClientByUserID(userID string) *Client {
-	sid := h.cache.GetUserIdToSocketId(userID)
+	sid := h.Cache.GetUserIdToSocketId(userID)
 	if sid == "" {
 		return nil
 	}

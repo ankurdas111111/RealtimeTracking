@@ -44,10 +44,10 @@ func (h *Hub) handlePosition(c *Client, data json.RawMessage) {
 	if !c.CheckRateLimit("position", positionRateMin) {
 		return
 	}
-	if now-h.cache.GetLastPositionAt(clientID) < positionCooldownMs {
+	if now-h.Cache.GetLastPositionAt(clientID) < positionCooldownMs {
 		return
 	}
-	h.cache.SetLastPositionAt(clientID, now)
+	h.Cache.SetLastPositionAt(clientID, now)
 
 	m := toMap(data)
 	pos := shared.ValidatePosition(m)
@@ -55,7 +55,7 @@ func (h *Hub) handlePosition(c *Client, data json.RawMessage) {
 		return
 	}
 
-	user := h.cache.GetActiveUser(clientID)
+	user := h.Cache.GetActiveUser(clientID)
 	if user == nil {
 		return
 	}
@@ -89,18 +89,18 @@ func (h *Hub) handlePosition(c *Client, data json.RawMessage) {
 	h.RecordPosition(user.UserID, pos.Latitude, pos.Longitude, speedPtr, pos.Accuracy)
 
 	// DB save throttle (30s)
-	if now-h.cache.GetLastDbSaveAt(user.UserID) > dbSaveThrottleMs {
-		h.cache.SetLastDbSaveAt(user.UserID, now)
+	if now-h.Cache.GetLastDbSaveAt(user.UserID) > dbSaveThrottleMs {
+		h.Cache.SetLastDbSaveAt(user.UserID, now)
 		speedStr := fmt.Sprintf("%.2f", pos.Speed)
 		_ = db.UpdateUserLocation(context.Background(), h.pool.DB, user.UserID, pos.Latitude, pos.Longitude, speedStr, now)
 	}
 
-	sanitized := h.cache.SanitizeUser(user)
+	sanitized := h.Cache.SanitizeUser(user)
 	sanitized["online"] = true
 	h.queuePositionBroadcast(user, sanitized)
 
 	// Emit liveUpdate to live:token groups
-	tokens := h.cache.GetLiveTokensForUser(user.UserID)
+	tokens := h.Cache.GetLiveTokensForUser(user.UserID)
 	for token := range tokens {
 		h.SendToGroup("live:"+token, "liveUpdate", map[string]interface{}{"user": sanitized})
 	}
@@ -122,7 +122,7 @@ func (h *Hub) handlePositionBatch(c *Client, data json.RawMessage) {
 		batch = batch[:200]
 	}
 
-	user := h.cache.GetActiveUser(c.ID())
+	user := h.Cache.GetActiveUser(c.ID())
 	if user == nil {
 		return
 	}
@@ -140,10 +140,10 @@ func (h *Hub) handlePositionBatch(c *Client, data json.RawMessage) {
 		user.Accuracy = pos.Accuracy
 	}
 
-	sanitized := h.cache.SanitizeUser(user)
+	sanitized := h.Cache.SanitizeUser(user)
 	sanitized["online"] = true
 	h.queuePositionBroadcast(user, sanitized)
-	tokens := h.cache.GetLiveTokensForUser(user.UserID)
+	tokens := h.Cache.GetLiveTokensForUser(user.UserID)
 	for token := range tokens {
 		h.SendToGroup("live:"+token, "liveUpdate", map[string]interface{}{"user": sanitized})
 	}
@@ -154,7 +154,7 @@ func (h *Hub) handleProfileUpdate(c *Client, data json.RawMessage) {
 	if !c.CheckRateLimit("profileUpdate", 20) {
 		return
 	}
-	user := h.cache.GetActiveUser(c.ID())
+	user := h.Cache.GetActiveUser(c.ID())
 	if user == nil {
 		return
 	}
@@ -174,7 +174,7 @@ func (h *Hub) handleProfileUpdate(c *Client, data json.RawMessage) {
 		sanitized := shared.SanitizeString(s, 20)
 		user.ConnectionQuality = &sanitized
 	}
-	sanitized := h.cache.SanitizeUser(user)
+	sanitized := h.Cache.SanitizeUser(user)
 	sanitized["online"] = true
 	h.emitToVisibleAndSelf(user, "userUpdate", sanitized)
 }
@@ -184,7 +184,7 @@ func (h *Hub) handleSetRetention(c *Client, data json.RawMessage) {
 	if !c.CheckRateLimit("setRetention", 10) {
 		return
 	}
-	user := h.cache.GetActiveUser(c.ID())
+	user := h.Cache.GetActiveUser(c.ID())
 	if user == nil {
 		return
 	}
@@ -198,7 +198,7 @@ func (h *Hub) handleSetRetention(c *Client, data json.RawMessage) {
 	if mode, ok := m["mode"].(string); ok && (mode == "48h" || mode == "default") {
 		user.Retention.Mode = mode
 	}
-	sanitized := h.cache.SanitizeUser(user)
+	sanitized := h.Cache.SanitizeUser(user)
 	sanitized["online"] = true
 	h.emitToVisibleAndSelf(user, "userUpdate", sanitized)
 }
@@ -220,9 +220,9 @@ func (h *Hub) handleSetRetentionForever(c *Client, data json.RawMessage) {
 		return
 	}
 
-	target := h.cache.GetActiveUser(targetSocketID)
+	target := h.Cache.GetActiveUser(targetSocketID)
 	if target == nil {
-		target = h.cache.GetOfflineUserBySocketID(targetSocketID)
+		target = h.Cache.GetOfflineUserBySocketID(targetSocketID)
 	}
 	if target == nil {
 		return
@@ -238,8 +238,8 @@ func (h *Hub) handleSetRetentionForever(c *Client, data json.RawMessage) {
 		target.Retention.Mode = "default"
 	}
 
-	sanitized := h.cache.SanitizeUser(target)
-	sanitized["online"] = h.cache.GetUserIdToSocketId(target.UserID) != ""
+	sanitized := h.Cache.SanitizeUser(target)
+	sanitized["online"] = h.Cache.GetUserIdToSocketId(target.UserID) != ""
 	h.emitToVisibleAndSelf(target, "userUpdate", sanitized)
 }
 
@@ -260,12 +260,12 @@ func (h *Hub) handleAdminDeleteUser(c *Client, data json.RawMessage) {
 		return
 	}
 
-	targetUser := h.cache.GetActiveUser(targetSocketID)
+	targetUser := h.Cache.GetActiveUser(targetSocketID)
 	if targetUser != nil {
 		targetUser.ForceDelete = true
-		h.cache.DeleteOfflineUser(targetUser.UserID)
+		h.Cache.DeleteOfflineUser(targetUser.UserID)
 		h.DisconnectClient(targetSocketID)
-		visibleSids := h.cache.GetVisibleSocketIDs(targetUser)
+		visibleSids := h.Cache.GetVisibleSocketIDs(targetUser)
 		for _, sid := range visibleSids {
 			h.SendToClient(sid, "userDisconnect", targetSocketID)
 		}
@@ -280,11 +280,11 @@ func (h *Hub) handleCreateRoom(c *Client, data json.RawMessage) {
 	if !c.CheckRateLimit("createRoom", 10) {
 		return
 	}
-	user := h.cache.GetActiveUser(c.ID())
+	user := h.Cache.GetActiveUser(c.ID())
 	if user == nil {
 		return
 	}
-	if h.cache.GetUserRoomCount(user.UserID) >= maxRoomsPerUser {
+	if h.Cache.GetUserRoomCount(user.UserID) >= maxRoomsPerUser {
 		c.Send("roomError", map[string]interface{}{"message": "Room limit reached (" + string(rune(maxRoomsPerUser)) + ")"})
 		return
 	}
@@ -309,8 +309,8 @@ func (h *Hub) handleCreateRoom(c *Client, data json.RawMessage) {
 		return
 	}
 
-	h.cache.AddRoom(code, roomDbID, roomName, user.UserID, createdAt)
-	user.Rooms = h.cache.GetUserRooms(user.UserID)
+	h.Cache.AddRoom(code, roomDbID, roomName, user.UserID, createdAt)
+	user.Rooms = h.Cache.GetUserRooms(user.UserID)
 	h.invalidateVisibility(user.UserID)
 
 	c.Send("roomCreated", map[string]interface{}{"code": code, "name": roomName})
@@ -321,7 +321,7 @@ func (h *Hub) handleCreateRoom(c *Client, data json.RawMessage) {
 func (h *Hub) generateUniqueRoomCode() string {
 	for {
 		code := shared.GenerateCode()
-		if !h.cache.ShareCodeExists(code) && h.cache.GetRoom(code) == nil {
+		if !h.Cache.ShareCodeExists(code) && h.Cache.GetRoom(code) == nil {
 			return code
 		}
 	}
@@ -332,7 +332,7 @@ func (h *Hub) handleJoinRoom(c *Client, data json.RawMessage) {
 	if !c.CheckRateLimit("joinRoom", 10) {
 		return
 	}
-	user := h.cache.GetActiveUser(c.ID())
+	user := h.Cache.GetActiveUser(c.ID())
 	if user == nil {
 		return
 	}
@@ -348,7 +348,7 @@ func (h *Hub) handleJoinRoom(c *Client, data json.RawMessage) {
 		return
 	}
 
-	room := h.cache.GetRoom(code)
+	room := h.Cache.GetRoom(code)
 	if room == nil {
 		c.Send("roomError", map[string]interface{}{"message": "Room not found"})
 		return
@@ -360,8 +360,8 @@ func (h *Hub) handleJoinRoom(c *Client, data json.RawMessage) {
 		return
 	}
 
-	h.cache.AddRoomMember(code, user.UserID, "member")
-	user.Rooms = h.cache.GetUserRooms(user.UserID)
+	h.Cache.AddRoomMember(code, user.UserID, "member")
+	user.Rooms = h.Cache.GetUserRooms(user.UserID)
 
 	memberIDs := make([]string, 0, len(room.Members))
 	for mid := range room.Members {
@@ -379,7 +379,7 @@ func (h *Hub) handleLeaveRoom(c *Client, data json.RawMessage) {
 	if !c.CheckRateLimit("leaveRoom", 10) {
 		return
 	}
-	user := h.cache.GetActiveUser(c.ID())
+	user := h.Cache.GetActiveUser(c.ID())
 	if user == nil {
 		return
 	}
@@ -394,7 +394,7 @@ func (h *Hub) handleLeaveRoom(c *Client, data json.RawMessage) {
 		return
 	}
 
-	room := h.cache.GetRoom(code)
+	room := h.Cache.GetRoom(code)
 	if room == nil {
 		return
 	}
@@ -404,13 +404,13 @@ func (h *Hub) handleLeaveRoom(c *Client, data json.RawMessage) {
 		return
 	}
 
-	h.cache.RemoveRoomMember(code, user.UserID)
+	h.Cache.RemoveRoomMember(code, user.UserID)
 	if len(room.Members) <= 1 {
 		_ = db.DeleteRoom(context.Background(), h.pool.DB, room.DbID)
-		h.cache.DeleteRoom(code)
+		h.Cache.DeleteRoom(code)
 	}
 
-	user.Rooms = h.cache.GetUserRooms(user.UserID)
+	user.Rooms = h.Cache.GetUserRooms(user.UserID)
 	memberIDs := make([]string, 0, len(room.Members))
 	for mid := range room.Members {
 		memberIDs = append(memberIDs, mid)
@@ -428,11 +428,11 @@ func (h *Hub) handleAddContact(c *Client, data json.RawMessage) {
 	if !c.CheckRateLimit("addContact", 10) {
 		return
 	}
-	user := h.cache.GetActiveUser(c.ID())
+	user := h.Cache.GetActiveUser(c.ID())
 	if user == nil {
 		return
 	}
-	if h.cache.GetContactCount(user.UserID) >= maxContactsPerUser {
+	if h.Cache.GetContactCount(user.UserID) >= maxContactsPerUser {
 		c.Send("contactError", map[string]interface{}{"message": "Contact limit reached"})
 		return
 	}
@@ -448,7 +448,7 @@ func (h *Hub) handleAddContact(c *Client, data json.RawMessage) {
 		return
 	}
 
-	targetID := h.cache.GetUserIDByShareCode(shareCode)
+	targetID := h.Cache.GetUserIDByShareCode(shareCode)
 	if targetID == "" || targetID == user.UserID {
 		c.Send("contactError", map[string]interface{}{"message": "User not found"})
 		return
@@ -460,15 +460,15 @@ func (h *Hub) handleAddContact(c *Client, data json.RawMessage) {
 		return
 	}
 
-	h.cache.AddContactBidirectional(user.UserID, targetID)
+	h.Cache.AddContactBidirectional(user.UserID, targetID)
 	h.invalidateVisibilityForUsers([]string{user.UserID, targetID})
 
-	c.Send("contactAdded", map[string]interface{}{"userId": targetID, "displayName": h.cache.GetDisplayName(targetID)})
+	c.Send("contactAdded", map[string]interface{}{"userId": targetID, "displayName": h.Cache.GetDisplayName(targetID)})
 	h.emitMyContacts(c, user.UserID)
 	h.scheduleVisibilityRefresh(c, user)
 
 	if other := h.GetClientByUserID(targetID); other != nil {
-		ou := h.cache.GetActiveUser(other.ID())
+		ou := h.Cache.GetActiveUser(other.ID())
 		if ou != nil {
 			h.emitMyContacts(other, targetID)
 			h.scheduleVisibilityRefresh(other, ou)
@@ -481,7 +481,7 @@ func (h *Hub) handleRemoveContact(c *Client, data json.RawMessage) {
 	if !c.CheckRateLimit("removeContact", 10) {
 		return
 	}
-	user := h.cache.GetActiveUser(c.ID())
+	user := h.Cache.GetActiveUser(c.ID())
 	if user == nil {
 		return
 	}
@@ -501,7 +501,7 @@ func (h *Hub) handleRemoveContact(c *Client, data json.RawMessage) {
 		return
 	}
 
-	h.cache.RemoveContactBidirectional(user.UserID, targetID)
+	h.Cache.RemoveContactBidirectional(user.UserID, targetID)
 	h.invalidateVisibilityForUsers([]string{user.UserID, targetID})
 
 	c.Send("contactRemoved", map[string]interface{}{"userId": targetID})
@@ -509,7 +509,7 @@ func (h *Hub) handleRemoveContact(c *Client, data json.RawMessage) {
 	h.scheduleVisibilityRefresh(c, user)
 
 	if other := h.GetClientByUserID(targetID); other != nil {
-		ou := h.cache.GetActiveUser(other.ID())
+		ou := h.Cache.GetActiveUser(other.ID())
 		if ou != nil {
 			h.emitMyContacts(other, targetID)
 			h.scheduleVisibilityRefresh(other, ou)
@@ -522,11 +522,11 @@ func (h *Hub) handleCreateLiveLink(c *Client, data json.RawMessage) {
 	if !c.CheckRateLimit("createLiveLink", 10) {
 		return
 	}
-	user := h.cache.GetActiveUser(c.ID())
+	user := h.Cache.GetActiveUser(c.ID())
 	if user == nil {
 		return
 	}
-	if h.cache.GetLiveTokenCount(user.UserID) >= maxLiveLinksPerUser {
+	if h.Cache.GetLiveTokenCount(user.UserID) >= maxLiveLinksPerUser {
 		c.Send("liveLinkError", map[string]interface{}{"message": "Live link limit reached"})
 		return
 	}
@@ -563,7 +563,7 @@ func (h *Hub) handleCreateLiveLink(c *Client, data json.RawMessage) {
 		return
 	}
 
-	h.cache.AddLiveToken(token, user.UserID, expiresAt, createdAt)
+	h.Cache.AddLiveToken(token, user.UserID, expiresAt, createdAt)
 	c.Send("liveLinkCreated", map[string]interface{}{"token": token, "expiresAt": expiresAt})
 	h.emitMyLiveLinks(c, user.UserID)
 }
@@ -579,7 +579,7 @@ func (h *Hub) handleRevokeLiveLink(c *Client, data json.RawMessage) {
 	if !c.CheckRateLimit("revokeLiveLink", 10) {
 		return
 	}
-	user := h.cache.GetActiveUser(c.ID())
+	user := h.Cache.GetActiveUser(c.ID())
 	if user == nil {
 		return
 	}
@@ -594,13 +594,13 @@ func (h *Hub) handleRevokeLiveLink(c *Client, data json.RawMessage) {
 		return
 	}
 
-	entry := h.cache.GetLiveToken(token)
+	entry := h.Cache.GetLiveToken(token)
 	if entry == nil || entry.UserID != user.UserID {
 		return
 	}
 
 	_ = db.DeleteLiveToken(context.Background(), h.pool.DB, token)
-	h.cache.DeleteLiveToken(token)
+	h.Cache.DeleteLiveToken(token)
 	h.SendToGroup("live:"+token, "liveExpired", map[string]interface{}{"message": "Link revoked"})
 	c.Send("liveLinkRevoked", map[string]interface{}{"token": token})
 	h.emitMyLiveLinks(c, user.UserID)
@@ -622,20 +622,20 @@ func (h *Hub) handleWatchJoin(c *Client, data json.RawMessage) {
 		return
 	}
 
-	entry := h.cache.GetWatchToken(token)
+	entry := h.Cache.GetWatchToken(token)
 	if entry == nil {
 		c.Send("watchError", map[string]interface{}{"message": "Invalid or expired token"})
 		return
 	}
 
 	h.JoinGroup(c.ID(), "watch:"+token)
-	target := h.cache.GetActiveUser(entry.SocketID)
+	target := h.Cache.GetActiveUser(entry.SocketID)
 	if target == nil {
 		// Target offline - send minimal init
 		c.Send("watchInit", map[string]interface{}{"userId": entry.UserID})
 		return
 	}
-	c.Send("watchInit", h.cache.SanitizeUser(target))
+	c.Send("watchInit", h.Cache.SanitizeUser(target))
 }
 
 // handleLiveJoin joins live:token group and sends liveInit.
@@ -658,7 +658,7 @@ func (h *Hub) handleLiveJoin(c *Client, data json.RawMessage) {
 		return
 	}
 
-	entry := h.cache.GetLiveToken(token)
+	entry := h.Cache.GetLiveToken(token)
 	if entry == nil {
 		c.Send("liveError", map[string]interface{}{"message": "Invalid or expired link"})
 		return
@@ -668,12 +668,12 @@ func (h *Hub) handleLiveJoin(c *Client, data json.RawMessage) {
 	c.liveToken = token
 	c.liveViewerName = viewerName
 
-	target := h.cache.GetActiveUser(h.cache.GetUserIdToSocketId(entry.UserID))
+	target := h.Cache.GetActiveUser(h.Cache.GetUserIdToSocketId(entry.UserID))
 	if target == nil {
 		c.Send("liveInit", map[string]interface{}{"userId": entry.UserID})
 		return
 	}
-	c.Send("liveInit", map[string]interface{}{"user": h.cache.SanitizeUser(target)})
+	c.Send("liveInit", map[string]interface{}{"user": h.Cache.SanitizeUser(target)})
 }
 
 // handleRequestAdminOverview sends full admin overview (admin only).
@@ -689,7 +689,7 @@ func (h *Hub) handleRequestRoomAdmin(c *Client, data json.RawMessage) {
 	if !c.CheckRateLimit("requestRoomAdmin", 10) {
 		return
 	}
-	user := h.cache.GetActiveUser(c.ID())
+	user := h.Cache.GetActiveUser(c.ID())
 	if user == nil {
 		return
 	}
@@ -708,7 +708,7 @@ func (h *Hub) handleRequestRoomAdmin(c *Client, data json.RawMessage) {
 		return
 	}
 
-	room := h.cache.GetRoom(code)
+	room := h.Cache.GetRoom(code)
 	if room == nil || !room.Members[user.UserID] {
 		return
 	}
@@ -720,7 +720,7 @@ func (h *Hub) handleRequestRoomAdmin(c *Client, data json.RawMessage) {
 	if err := db.CreateRoomAdminRequest(context.Background(), h.pool.DB, code, user.UserID, expPtr, createdAt); err != nil {
 		return
 	}
-	h.cache.AddRoomAdminRequest(entry)
+	h.Cache.AddRoomAdminRequest(entry)
 
 	for mid := range room.Members {
 		if cli := h.GetClientByUserID(mid); cli != nil {
@@ -734,7 +734,7 @@ func (h *Hub) handleVoteRoomAdmin(c *Client, data json.RawMessage) {
 	if !c.CheckRateLimit("voteRoomAdmin", 20) {
 		return
 	}
-	user := h.cache.GetActiveUser(c.ID())
+	user := h.Cache.GetActiveUser(c.ID())
 	if user == nil {
 		return
 	}
@@ -755,15 +755,15 @@ func (h *Hub) handleVoteRoomAdmin(c *Client, data json.RawMessage) {
 		return
 	}
 
-	room := h.cache.GetRoom(roomCode)
+	room := h.Cache.GetRoom(roomCode)
 	if room == nil || !room.Members[user.UserID] {
 		return
 	}
 
 	_ = db.UpsertRoomAdminVote(context.Background(), h.pool.DB, roomCode, targetUserID, user.UserID, vote)
-	h.cache.AddRoomAdminVote(roomCode, targetUserID, user.UserID, vote)
+	h.Cache.AddRoomAdminVote(roomCode, targetUserID, user.UserID, vote)
 
-	reqs := h.cache.GetRoomAdminRequests(roomCode)
+	reqs := h.Cache.GetRoomAdminRequests(roomCode)
 	var targetReq *db.RoomAdminRequestEntry
 	for _, r := range reqs {
 		if r.From == targetUserID {
@@ -787,10 +787,10 @@ func (h *Hub) handleVoteRoomAdmin(c *Client, data json.RawMessage) {
 			expStr = *targetReq.ExpiresIn
 		}
 		expiresAt := h.parseExpiresIn(expStr)
-		h.cache.SetRoomMemberRole(roomCode, targetUserID, "admin", expiresAt)
+		h.Cache.SetRoomMemberRole(roomCode, targetUserID, "admin", expiresAt)
 		_ = db.SetRoomMemberRole(context.Background(), h.pool.DB, room.DbID, targetUserID, "admin", expiresAt)
 		_ = db.DeleteRoomAdminRequest(context.Background(), h.pool.DB, roomCode, targetUserID)
-		h.cache.RemoveRoomAdminRequest(roomCode, targetUserID)
+		h.Cache.RemoveRoomAdminRequest(roomCode, targetUserID)
 		for mid := range room.Members {
 			if cli := h.GetClientByUserID(mid); cli != nil {
 				h.SendToClient(cli.ID(), "roomAdminUpdated", map[string]interface{}{"roomCode": roomCode, "userId": targetUserID, "role": "admin", "expiresAt": expiresAt})
@@ -799,7 +799,7 @@ func (h *Hub) handleVoteRoomAdmin(c *Client, data json.RawMessage) {
 		}
 	} else if len(targetReq.Denials) >= majority {
 		_ = db.DeleteRoomAdminRequest(context.Background(), h.pool.DB, roomCode, targetUserID)
-		h.cache.RemoveRoomAdminRequest(roomCode, targetUserID)
+		h.Cache.RemoveRoomAdminRequest(roomCode, targetUserID)
 		for mid := range room.Members {
 			if cli := h.GetClientByUserID(mid); cli != nil {
 				h.SendToClient(cli.ID(), "roomAdminUpdated", map[string]interface{}{"roomCode": roomCode, "userId": targetUserID, "role": "denied", "expiresAt": nil})
@@ -820,7 +820,7 @@ func (h *Hub) handleRevokeRoomAdmin(c *Client, data json.RawMessage) {
 	if !c.CheckRateLimit("revokeRoomAdmin", 10) {
 		return
 	}
-	user := h.cache.GetActiveUser(c.ID())
+	user := h.Cache.GetActiveUser(c.ID())
 	if user == nil {
 		return
 	}
@@ -838,18 +838,18 @@ func (h *Hub) handleRevokeRoomAdmin(c *Client, data json.RawMessage) {
 		return
 	}
 
-	room := h.cache.GetRoom(roomCode)
+	room := h.Cache.GetRoom(roomCode)
 	if room == nil || !room.Members[targetUserID] {
 		return
 	}
 
-	actorRole := h.cache.GetRoomMemberRole(roomCode, user.UserID)
+	actorRole := h.Cache.GetRoomMemberRole(roomCode, user.UserID)
 	isSelf := user.UserID == targetUserID
 	if !isSelf && (actorRole == nil || actorRole.Role != "admin") {
 		return
 	}
 
-	h.cache.SetRoomMemberRole(roomCode, targetUserID, "member", nil)
+	h.Cache.SetRoomMemberRole(roomCode, targetUserID, "member", nil)
 	_ = db.SetRoomMemberRole(context.Background(), h.pool.DB, room.DbID, targetUserID, "member", nil)
 
 	for mid := range room.Members {
@@ -864,7 +864,7 @@ func (h *Hub) handleRequestGuardian(c *Client, data json.RawMessage) {
 	if !c.CheckRateLimit("requestGuardian", 10) {
 		return
 	}
-	user := h.cache.GetActiveUser(c.ID())
+	user := h.Cache.GetActiveUser(c.ID())
 	if user == nil {
 		return
 	}
@@ -883,8 +883,8 @@ func (h *Hub) handleRequestGuardian(c *Client, data json.RawMessage) {
 		return
 	}
 
-	myContacts := h.cache.GetContactsForUser(user.UserID)
-	theirContacts := h.cache.GetContactsForUser(wardID)
+	myContacts := h.Cache.GetContactsForUser(user.UserID)
+	theirContacts := h.Cache.GetContactsForUser(wardID)
 	hasMutual := false
 	for _, cid := range myContacts {
 		if cid == wardID {
@@ -902,17 +902,17 @@ func (h *Hub) handleRequestGuardian(c *Client, data json.RawMessage) {
 		return
 	}
 
-	existing := h.cache.GetGuardianship(user.UserID, wardID)
+	existing := h.Cache.GetGuardianship(user.UserID, wardID)
 	if existing != nil && (existing.Status == "active" || existing.Status == "pending") {
 		c.Send("contactError", map[string]interface{}{"message": "Request already pending"})
 		return
 	}
 
 	entry := &db.GuardianshipEntry{Status: "pending", InitiatedBy: "guardian", ExpiresAt: nil, CreatedAt: time.Now().UnixMilli()}
-	h.cache.SetGuardianship(user.UserID, wardID, entry)
+	h.Cache.SetGuardianship(user.UserID, wardID, entry)
 	_ = db.CreateGuardianship(context.Background(), h.pool.DB, user.UserID, wardID, "pending", nil, entry.CreatedAt, "guardian")
 
-	h.cache.AddPendingRequest(wardID+":guardian", map[string]interface{}{"type": "guardian", "from": user.UserID, "expiresIn": expiresIn})
+	h.Cache.AddPendingRequest(wardID+":guardian", map[string]interface{}{"type": "guardian", "from": user.UserID, "expiresIn": expiresIn})
 
 	if wardCli := h.GetClientByUserID(wardID); wardCli != nil {
 		wardCli.Send("guardianRequest", map[string]interface{}{"fromUserId": user.UserID, "fromName": user.DisplayName, "expiresIn": expiresIn, "initiatedBy": "guardian"})
@@ -928,7 +928,7 @@ func (h *Hub) handleInviteGuardian(c *Client, data json.RawMessage) {
 	if !c.CheckRateLimit("inviteGuardian", 10) {
 		return
 	}
-	user := h.cache.GetActiveUser(c.ID())
+	user := h.Cache.GetActiveUser(c.ID())
 	if user == nil {
 		return
 	}
@@ -947,8 +947,8 @@ func (h *Hub) handleInviteGuardian(c *Client, data json.RawMessage) {
 		return
 	}
 
-	myContacts := h.cache.GetContactsForUser(user.UserID)
-	theirContacts := h.cache.GetContactsForUser(guardianID)
+	myContacts := h.Cache.GetContactsForUser(user.UserID)
+	theirContacts := h.Cache.GetContactsForUser(guardianID)
 	hasMutual := false
 	for _, cid := range myContacts {
 		if cid == guardianID {
@@ -966,17 +966,17 @@ func (h *Hub) handleInviteGuardian(c *Client, data json.RawMessage) {
 		return
 	}
 
-	existing := h.cache.GetGuardianship(guardianID, user.UserID)
+	existing := h.Cache.GetGuardianship(guardianID, user.UserID)
 	if existing != nil && (existing.Status == "active" || existing.Status == "pending") {
 		c.Send("contactError", map[string]interface{}{"message": "Request already pending"})
 		return
 	}
 
 	entry := &db.GuardianshipEntry{Status: "pending", InitiatedBy: "ward", ExpiresAt: nil, CreatedAt: time.Now().UnixMilli()}
-	h.cache.SetGuardianship(guardianID, user.UserID, entry)
+	h.Cache.SetGuardianship(guardianID, user.UserID, entry)
 	_ = db.CreateGuardianship(context.Background(), h.pool.DB, guardianID, user.UserID, "pending", nil, entry.CreatedAt, "ward")
 
-	h.cache.AddPendingRequest(guardianID+":guardianInvite", map[string]interface{}{"type": "guardianInvite", "from": user.UserID, "expiresIn": expiresIn})
+	h.Cache.AddPendingRequest(guardianID+":guardianInvite", map[string]interface{}{"type": "guardianInvite", "from": user.UserID, "expiresIn": expiresIn})
 
 	if gCli := h.GetClientByUserID(guardianID); gCli != nil {
 		gCli.Send("guardianInvite", map[string]interface{}{"fromUserId": user.UserID, "fromName": user.DisplayName, "expiresIn": expiresIn, "initiatedBy": "ward"})
@@ -992,7 +992,7 @@ func (h *Hub) handleApproveGuardian(c *Client, data json.RawMessage) {
 	if !c.CheckRateLimit("approveGuardian", 10) {
 		return
 	}
-	user := h.cache.GetActiveUser(c.ID())
+	user := h.Cache.GetActiveUser(c.ID())
 	if user == nil {
 		return
 	}
@@ -1019,7 +1019,7 @@ func (h *Hub) handleApproveGuardian(c *Client, data json.RawMessage) {
 		return
 	}
 
-	entry := h.cache.GetGuardianship(gID, wID)
+	entry := h.Cache.GetGuardianship(gID, wID)
 	if entry == nil || entry.Status != "pending" {
 		return
 	}
@@ -1028,7 +1028,7 @@ func (h *Hub) handleApproveGuardian(c *Client, data json.RawMessage) {
 	if payloadExp, ok := m["expiresIn"].(string); ok {
 		expiresAt = h.parseExpiresIn(payloadExp)
 	}
-	reqs := h.cache.GetPendingRequests(pendingKey)
+	reqs := h.Cache.GetPendingRequests(pendingKey)
 	fromID := gID
 	if guardianID != "" {
 		fromID = guardianID
@@ -1045,11 +1045,11 @@ func (h *Hub) handleApproveGuardian(c *Client, data json.RawMessage) {
 			}
 		}
 	}
-	h.cache.RemovePendingRequestByFrom(pendingKey, fromID)
+	h.Cache.RemovePendingRequestByFrom(pendingKey, fromID)
 
 	entry.Status = "active"
 	entry.ExpiresAt = expiresAt
-	h.cache.SetGuardianship(gID, wID, &db.GuardianshipEntry{Status: "active", InitiatedBy: entry.InitiatedBy, ExpiresAt: expiresAt, CreatedAt: entry.CreatedAt})
+	h.Cache.SetGuardianship(gID, wID, &db.GuardianshipEntry{Status: "active", InitiatedBy: entry.InitiatedBy, ExpiresAt: expiresAt, CreatedAt: entry.CreatedAt})
 	_ = db.CreateGuardianship(context.Background(), h.pool.DB, gID, wID, "active", expiresAt, entry.CreatedAt, entry.InitiatedBy)
 
 	h.invalidateVisibilityForUsers([]string{gID, wID})
@@ -1075,7 +1075,7 @@ func (h *Hub) handleDenyGuardian(c *Client, data json.RawMessage) {
 	if !c.CheckRateLimit("denyGuardian", 10) {
 		return
 	}
-	user := h.cache.GetActiveUser(c.ID())
+	user := h.Cache.GetActiveUser(c.ID())
 	if user == nil {
 		return
 	}
@@ -1102,21 +1102,21 @@ func (h *Hub) handleDenyGuardian(c *Client, data json.RawMessage) {
 		return
 	}
 
-	entry := h.cache.GetGuardianship(gID, wID)
+	entry := h.Cache.GetGuardianship(gID, wID)
 	if entry == nil || entry.Status != "pending" {
 		return
 	}
 
-	h.cache.DeleteGuardianship(gID, wID)
+	h.Cache.DeleteGuardianship(gID, wID)
 	fromID := guardianID
 	if fromID == "" {
 		fromID = wardID
 	}
-	h.cache.RemovePendingRequestByFrom(pendingKey, fromID)
+	h.Cache.RemovePendingRequestByFrom(pendingKey, fromID)
 	if guardianID != "" {
-		h.cache.RemovePendingRequestByFrom(wID+":guardianInvite", user.UserID)
+		h.Cache.RemovePendingRequestByFrom(wID+":guardianInvite", user.UserID)
 	} else {
-		h.cache.RemovePendingRequestByFrom(gID+":guardian", user.UserID)
+		h.Cache.RemovePendingRequestByFrom(gID+":guardian", user.UserID)
 	}
 	_ = db.UpdateGuardianshipStatus(context.Background(), h.pool.DB, gID, wID, "revoked")
 
@@ -1143,7 +1143,7 @@ func (h *Hub) handleRevokeGuardian(c *Client, data json.RawMessage) {
 	if !c.CheckRateLimit("revokeGuardian", 10) {
 		return
 	}
-	user := h.cache.GetActiveUser(c.ID())
+	user := h.Cache.GetActiveUser(c.ID())
 	if user == nil {
 		return
 	}
@@ -1168,7 +1168,7 @@ func (h *Hub) handleRevokeGuardian(c *Client, data json.RawMessage) {
 		return
 	}
 
-	entry := h.cache.GetGuardianship(gID, wID)
+	entry := h.Cache.GetGuardianship(gID, wID)
 	if entry == nil || (entry.Status != "active" && entry.Status != "pending") {
 		return
 	}
@@ -1185,9 +1185,9 @@ func (h *Hub) handleRevokeGuardian(c *Client, data json.RawMessage) {
 		}
 	}
 
-	h.cache.DeleteGuardianship(gID, wID)
-	h.cache.RemovePendingRequestByFrom(wID+":guardian", gID)
-	h.cache.RemovePendingRequestByFrom(gID+":guardianInvite", wID)
+	h.Cache.DeleteGuardianship(gID, wID)
+	h.Cache.RemovePendingRequestByFrom(wID+":guardian", gID)
+	h.Cache.RemovePendingRequestByFrom(gID+":guardianInvite", wID)
 	_ = db.UpdateGuardianshipStatus(context.Background(), h.pool.DB, gID, wID, "revoked")
 
 	h.invalidateVisibilityForUsers([]string{gID, wID})
