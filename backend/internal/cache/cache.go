@@ -328,17 +328,22 @@ func (c *Cache) DeleteWatchToken(token string) {
 // GetDisplayName returns the display name for a user.
 func (c *Cache) GetDisplayName(userID string) string {
 	c.mu.RLock()
-	defer c.mu.RUnlock()
-
 	u, ok := c.UsersCache[userID]
+	c.mu.RUnlock()
+
 	if !ok {
-		return "Unknown"
+		// Try lazy loading if not in cache
+		u = c.LoadUserCacheEntry(userID)
+		if u == nil {
+			return "Unknown"
+		}
 	}
+
 	name := u.FirstName + " " + u.LastName
-	if name == "" {
+	if name == " " || strings.TrimSpace(name) == "" {
 		return "Unknown"
 	}
-	return name
+	return strings.TrimSpace(name)
 }
 
 // GetUsersCache returns a copy of UsersCache (caller must hold lock for direct access patterns).
@@ -787,10 +792,10 @@ func (c *Cache) getDisplayNameLocked(userID string) string {
 		return "Unknown"
 	}
 	name := u.FirstName + " " + u.LastName
-	if name == "" {
+	if name == " " || strings.TrimSpace(name) == "" {
 		return "Unknown"
 	}
-	return name
+	return strings.TrimSpace(name)
 }
 
 // sanitizeUserLocked assumes c.mu is held. Returns a new map.

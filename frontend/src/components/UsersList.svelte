@@ -65,12 +65,27 @@
           <div class="status-dot online"></div>
           <div>
             <strong>{$authUser?.displayName || 'You'} (You)</strong>
-            <div class="mini">Tracking active</div>
+            <div class="mini">Online</div>
+            <div class="mini">Updated: {$myLocation.formattedTime || formatTimestamp($myLocation.timestamp) || '-'}</div>
+            {#if $myLocation.speed != null}
+              <div class="mini">{parseFloat($myLocation.speed).toFixed(1)} km/h</div>
+            {/if}
+            {#if $myLocation.accuracy != null}
+              <div class="mini">Accuracy: ±{Math.round($myLocation.accuracy)}m</div>
+            {/if}
+            {#if $myLocation.battery != null}
+              <div class="mini">Battery: {$myLocation.battery}%</div>
+            {/if}
           </div>
         </div>
-        <span class="locate-icon" title="Locate on map">
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="10" r="3"/><path d="M12 2a8 8 0 0 0-8 8c0 1.892.402 3.13 1.5 4.5L12 22l6.5-7.5c1.098-1.37 1.5-2.608 1.5-4.5a8 8 0 0 0-8-8z"/></svg>
-        </span>
+        <div class="user-actions">
+          {#if $myLocation.battery != null}
+            <span class="mini bat-badge">{$myLocation.battery}%</span>
+          {/if}
+          <span class="locate-icon" title="Locate on map">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="10" r="3"/><path d="M12 2a8 8 0 0 0-8 8c0 1.892.402 3.13 1.5 4.5L12 22l6.5-7.5c1.098-1.37 1.5-2.608 1.5-4.5a8 8 0 0 0-8-8z"/></svg>
+          </span>
+        </div>
       </button>
     {/if}
 
