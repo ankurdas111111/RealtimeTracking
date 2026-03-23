@@ -183,7 +183,7 @@ func SecurityHeadersMiddleware(isProduction bool) func(http.Handler) http.Handle
 				w.Header().Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains; preload")
 
 				// Content Security Policy: restrictive default
-				w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' wss: https:; frame-ancestors 'none'")
+				w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data: https:; connect-src 'self' wss: https:; worker-src 'self' blob:; frame-ancestors 'none'")
 			}
 
 			next.ServeHTTP(w, r)

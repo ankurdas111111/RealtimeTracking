@@ -73,6 +73,8 @@
       ensureCircleLayer('my-geofence-fill', 'my-geofence', '#8b5cf6', 0.10, '#8b5cf6', 2.5, [8, 5]);
     }
 
+    let styleFallbackDone = false;
+
     function initMap(style) {
       map = new maplibregl.Map({
         container: mapContainer,
@@ -87,12 +89,18 @@
 
       map.on('dragstart', () => { followMode = false; });
       map.on('load', addCircleSources);
+
+      // If vector tiles fail to load, fall back to raster
+      map.on('error', (e) => {
+        if (!styleFallbackDone && style !== RASTER_STYLE) {
+          styleFallbackDone = true;
+          map.once('style.load', addCircleSources);
+          map.setStyle(RASTER_STYLE);
+        }
+      });
     }
 
-    // Try OpenFreeMap vector tiles first, fall back to CARTO raster on error
-    fetch(MAP_STYLE, { method: 'HEAD' })
-      .then(r => { if (!r.ok) throw new Error(); initMap(MAP_STYLE); })
-      .catch(() => initMap(RASTER_STYLE));
+    initMap(MAP_STYLE);
   });
 
   onDestroy(() => {
