@@ -13,19 +13,21 @@ export const RASTER_STYLE = {
     osm: {
       type: 'raster',
       tiles: [
-        'https://a.tile.openstreetmap.org/{z}/{x}/{y}.png',
-        'https://b.tile.openstreetmap.org/{z}/{x}/{y}.png',
-        'https://c.tile.openstreetmap.org/{z}/{x}/{y}.png'
+        'https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
+        'https://b.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
+        'https://c.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png'
       ],
       tileSize: 256,
-      maxzoom: 19,
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+      maxzoom: 18,
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
     }
   },
   layers: [{ id: 'osm-tiles', type: 'raster', source: 'osm' }]
 };
 
-const VECTOR_STYLE_URL = 'https://tiles.openfreemap.org/styles/liberty';
+// Vector style fallback (optional upgrade from raster)
+// Using a compatible style that works with MapLibre GL
+const VECTOR_STYLE_URL = 'https://demotiles.maplibre.org/style.json';
 
 /**
  * Upgrade a map from raster to vector tiles in the background.
