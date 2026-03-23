@@ -20,6 +20,10 @@ docs/
 **/*.md
 *.md
 
+# Android signing — never commit keystores
+*.keystore
+*.jks
+
 # Go build artifacts
 backend/kinnect-server
 backend/kinnect-v3
