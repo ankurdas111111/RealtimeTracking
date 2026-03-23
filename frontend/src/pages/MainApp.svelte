@@ -205,24 +205,25 @@
       if (impliedKmh > 350) return; // absolute cap (faster than any ground vehicle)
     }
 
-    // GPS speed is unreliable — cross-validate it before trusting it.
-    // Rule 1: poor accuracy → GPS speed is meaningless (hardware reports garbage when signal is weak)
-    // Rule 2: actual position movement < accuracy radius → we haven't really moved, so speed = 0
-    // Rule 3: clamp anything under 1 km/h to zero (GPS noise floor)
+    // Derive speed from actual position change — works regardless of GPS accuracy.
+    // GPS Doppler speed is theoretically accurate but phones report garbage (10-30 km/h)
+    // when signal is poor or on cold start. Position-implied speed can't lie:
+    // if you haven't moved, it's 0.
+    //
+    // Strategy: take the LOWER of GPS-reported speed vs position-implied speed.
+    // - Stationary with bad GPS (reports 30 km/h): implied ≈ 0 → speed = 0 ✓
+    // - Actually driving at 60 km/h: both agree → speed = 60 ✓
+    // - Walking at 5 km/h with ok GPS: both agree → speed = 5 ✓
     const rawKmh = rawSpeed != null && Number.isFinite(rawSpeed) ? rawSpeed * 3.6 : 0;
-    let speed = 0;
-    if (rawKmh >= 1.0 && accuracy <= 50) {
-      // Only trust GPS speed when signal is good (accuracy ≤ 50 m)
-      if (lastAcceptedFix) {
-        const movedM = calculateDistance(lastAcceptedFix.latitude, lastAcceptedFix.longitude, rawLat, rawLng);
-        // If actual movement is within the accuracy radius the device hasn't really moved
-        if (movedM > accuracy * 0.5) {
-          speed = Number(rawKmh.toFixed(1));
-        }
-      } else {
-        speed = Number(rawKmh.toFixed(1));
-      }
+    let impliedKmh = 0;
+    if (lastAcceptedFix) {
+      const movedM = calculateDistance(lastAcceptedFix.latitude, lastAcceptedFix.longitude, rawLat, rawLng);
+      const dtSec = Math.max((now - lastAcceptedFix.ts) / 1000, 1);
+      impliedKmh = (movedM / dtSec) * 3.6;
     }
+    // Use lower of the two; clamp noise floor to 0
+    const candidateKmh = rawKmh > 0 ? Math.min(rawKmh, impliedKmh > 0 ? impliedKmh * 1.5 : rawKmh) : impliedKmh;
+    const speed = candidateKmh >= 1.0 ? Number(candidateKmh.toFixed(1)) : 0;
 
     gpsFilter.setSpeed(speed);
     let latitude, longitude, kalmanCorrectionM;
