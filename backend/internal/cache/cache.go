@@ -725,6 +725,9 @@ func (c *Cache) BuildExistingUsersPayload(viewerUserID string) []map[string]inte
 	var out []map[string]interface{}
 
 	for _, u := range c.ActiveUsers {
+		if u.UserID == viewerUserID {
+			continue // Skip self
+		}
 		if !visibleSet[u.UserID] {
 			continue
 		}
@@ -738,6 +741,9 @@ func (c *Cache) BuildExistingUsersPayload(viewerUserID string) []map[string]inte
 	}
 
 	for _, entry := range c.OfflineUsers {
+		if entry.User.UserID == viewerUserID {
+			continue // Skip self
+		}
 		if !visibleSet[entry.User.UserID] || seen[entry.User.UserID] {
 			continue
 		}
@@ -749,6 +755,9 @@ func (c *Cache) BuildExistingUsersPayload(viewerUserID string) []map[string]inte
 	}
 
 	for uid, uc := range c.UsersCache {
+		if uid == viewerUserID {
+			continue // Skip self
+		}
 		if seen[uid] || !visibleSet[uid] || uc.LastLat == nil || uc.LastLng == nil {
 			continue
 		}
