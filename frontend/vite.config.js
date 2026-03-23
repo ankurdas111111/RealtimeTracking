@@ -21,19 +21,15 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     emptyOutDir: true,
-    minify: 'terser',
-    cssCodeSplit: true,
+    minify: 'esbuild',
+    cssCodeSplit: false,
     rollupOptions: {
       output: {
         manualChunks: {
           maplibre: ['maplibre-gl']
         }
       },
-      treeshake: {
-        moduleSideEffects: false,
-        propertyReadSideEffects: false,
-        tryCatchDeoptimization: false
-      }
+      treeshake: true
     }
   },
   server: {

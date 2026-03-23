@@ -43,7 +43,7 @@ RUN CGO_ENABLED=0 GOOS=linux GOFLAGS="-ldflags=-s -ldflags=-w" go build -o kinne
 # Stage 3: Minimal runtime image using Alpine
 FROM alpine:latest
 
-RUN apk --no-cache add ca-certificates curl
+RUN apk --no-cache add ca-certificates
 
 WORKDIR /app
 
@@ -58,9 +58,5 @@ ENV FRONTEND_DIR=/app/frontend/dist
 ENV PORT=3000
 
 EXPOSE 3000
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
-    CMD curl -f http://localhost:${PORT:-3000}/api/health || exit 1
 
 ENTRYPOINT ["/app/kinnect-server"]
