@@ -24,6 +24,10 @@ export default defineConfig({
     minify: 'esbuild',
     cssCodeSplit: false,
     rollupOptions: {
+      // Background geolocation is a native-only Capacitor plugin with no JS dist.
+      // It is injected by the native shell at runtime — mark as external so Rollup
+      // doesn't try to bundle it (applies for both web and capacitor builds).
+      external: ['@capacitor-community/background-geolocation'],
       output: {
         manualChunks: {
           maplibre: ['maplibre-gl']

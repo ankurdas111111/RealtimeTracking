@@ -49,7 +49,8 @@ const result = spawnSync("npm", ["run", scriptName], {
   stdio: "inherit",
   env: {
     ...process.env,
-    VITE_API_URL: normalizedApiUrl
+    VITE_API_URL: normalizedApiUrl,
+    VITE_REALTIME_PROTOCOL: "ws"
   }
 });
 

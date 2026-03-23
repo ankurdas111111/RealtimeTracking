@@ -12,12 +12,12 @@
     "dev": "node scripts/start-v3.js",
     "test": "cd backend && ./test/integration_test.sh 3001",
     "bench": "bash backend/test/benchmark-unified.sh 3001 10 20 250",
-    "build:android": "cd frontend && VITE_TARGET=capacitor npx vite build && npx cap sync android",
+    "build:android": "cd frontend && VITE_TARGET=capacitor VITE_REALTIME_PROTOCOL=ws npx vite build && npx cap sync android",
     "build:android:prod": "node scripts/build-mobile-with-api.cjs android",
     "run:android": "cd frontend && npx cap run android",
     "apk:release": "cd frontend/android && ./gradlew clean assembleRelease",
     "aab:release": "cd frontend/android && ./gradlew clean bundleRelease",
-    "build:ios": "cd frontend && VITE_TARGET=capacitor npx vite build && npx cap sync ios",
+    "build:ios": "cd frontend && VITE_TARGET=capacitor VITE_REALTIME_PROTOCOL=ws npx vite build && npx cap sync ios",
     "build:ios:prod": "node scripts/build-mobile-with-api.cjs ios",
     "run:ios": "cd frontend && npx cap run ios"
   },
@@ -34,6 +34,7 @@
     "node": "20.x"
   },
   "dependencies": {
+    "@capacitor-community/background-geolocation": "^1.2.26",
     "@capacitor/app": "^8.0.1",
     "@capacitor/core": "^8.1.0",
     "@capacitor/geolocation": "^8.1.0",
