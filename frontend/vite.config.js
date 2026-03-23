@@ -23,16 +23,6 @@ export default defineConfig({
     emptyOutDir: true,
     minify: 'terser',
     cssCodeSplit: true,
-    terserOptions: {
-      compress: {
-        drop_console: true,
-        passes: 3
-      },
-      mangle: true,
-      format: {
-        comments: false
-      }
-    },
     rollupOptions: {
       output: {
         manualChunks: {
