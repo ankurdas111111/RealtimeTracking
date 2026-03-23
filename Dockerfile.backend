@@ -1,34 +1,25 @@
-# syntax=docker/dockerfile:1.4
-
-# Stage 1: Build Svelte frontend - use official Node.js image
-FROM node:20 AS frontend-builder
-
+# Build frontend and backend, serve with Go
+FROM node:20-alpine AS frontend-builder
 WORKDIR /app
 COPY package.json package-lock.json ./
-RUN npm ci --omit=optional
+RUN npm install
 COPY frontend/ ./frontend/
-RUN npm run build:frontend
+RUN cd frontend && npm run build
 
-# Stage 2: Build Go backend
-FROM golang:1.25 AS backend-builder
-
+FROM golang:1.25-alpine AS backend-builder
+RUN apk add --no-cache git
 WORKDIR /build
 COPY backend/go.mod backend/go.sum ./
 RUN go mod download
 COPY backend/ .
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o kinnect-server .
+RUN CGO_ENABLED=0 GOOS=linux go build -o server .
 
-# Stage 3: Minimal runtime
 FROM alpine:latest
-
-RUN apk --no-cache add ca-certificates
+RUN apk add --no-cache ca-certificates
 WORKDIR /app
-
-COPY --from=backend-builder /build/kinnect-server .
+COPY --from=backend-builder /build/server .
 COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
-
 ENV FRONTEND_DIR=/app/frontend/dist
 ENV PORT=3000
 EXPOSE 3000
-
-ENTRYPOINT ["./kinnect-server"]
+CMD ["./server"]
