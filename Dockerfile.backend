@@ -40,15 +40,10 @@ COPY backend/ .
 # -ldflags=-w: strip DWARF debug info
 RUN CGO_ENABLED=0 GOOS=linux GOFLAGS="-ldflags=-s -ldflags=-w" go build -o kinnect-server .
 
-# Stage 3: Extract CA certificates for scratch image
-FROM alpine:latest AS certs
-RUN apk --no-cache add ca-certificates
+# Stage 3: Minimal runtime image using Alpine
+FROM alpine:latest
 
-# Stage 4: Minimal runtime image using scratch (smallest possible)
-FROM scratch
-
-# Copy CA certificates from alpine
-COPY --from=certs /etc/ssl/certs/ca-bundle.crt /etc/ssl/certs/ca-bundle.crt
+RUN apk --no-cache add ca-certificates curl
 
 WORKDIR /app
 
@@ -64,5 +59,8 @@ ENV PORT=3000
 
 EXPOSE 3000
 
-# No health check on scratch (curl unavailable), rely on HTTP status
+# Health check
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+    CMD curl -f http://localhost:${PORT:-3000}/api/health || exit 1
+
 ENTRYPOINT ["/app/kinnect-server"]
