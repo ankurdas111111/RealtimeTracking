@@ -1,52 +1,68 @@
-# Stage 1: Build Svelte frontend
+# syntax=docker/dockerfile:1.4
+
+# Stage 1: Build Svelte frontend with BuildKit cache
 FROM node:20-alpine AS frontend-builder
 
 WORKDIR /app
 
-# Copy package files and install deps (only what vite needs)
+# Copy ONLY package files first (cached separately)
 COPY package.json package-lock.json ./
-COPY frontend/ ./frontend/
-RUN npm ci --include=dev && npm run build:frontend
 
-# Stage 2: Build Go backend
+# Cache npm installs across builds
+RUN --mount=type=cache,target=/root/.npm \
+    npm ci --prefer-offline --no-audit --include=dev
+
+# Copy source code separately (invalidates less frequently)
+COPY frontend/ ./frontend/
+
+# Build frontend with optimizations
+RUN npm run build:frontend
+
+# Stage 2: Build Go backend with BuildKit cache
 FROM golang:1.25-alpine AS backend-builder
 
 RUN apk add --no-cache git
 
 WORKDIR /build
 
+# Copy ONLY go.mod and go.sum first (cached separately)
 COPY backend/go.mod backend/go.sum ./
-RUN go mod download
 
+# Cache go mod downloads across builds
+RUN --mount=type=cache,target=/go/pkg/mod \
+    go mod download
+
+# Copy source code separately (invalidates less frequently)
 COPY backend/ .
-RUN CGO_ENABLED=0 GOOS=linux go build -o kinnect-server .
 
-# Stage 3: Minimal runtime image
-FROM alpine:latest
+# Build with aggressive optimization flags
+# -ldflags=-s: strip symbol table (40-50% size reduction)
+# -ldflags=-w: strip DWARF debug info
+RUN CGO_ENABLED=0 GOOS=linux GOFLAGS="-ldflags=-s -ldflags=-w" go build -o kinnect-server .
 
-RUN apk --no-cache add ca-certificates curl
+# Stage 3: Extract CA certificates for scratch image
+FROM alpine:latest AS certs
+RUN apk --no-cache add ca-certificates
+
+# Stage 4: Minimal runtime image using scratch (smallest possible)
+FROM scratch
+
+# Copy CA certificates from alpine
+COPY --from=certs /etc/ssl/certs/ca-bundle.crt /etc/ssl/certs/ca-bundle.crt
 
 WORKDIR /app
 
-# Copy Go binary
-COPY --from=backend-builder /build/kinnect-server .
+# Copy Go binary (already stripped and optimized)
+COPY --from=backend-builder /build/kinnect-server /app/kinnect-server
 
 # Copy built frontend assets
-COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
-
-# Create non-root user
-RUN addgroup -g 1000 kinnect && \
-    adduser -D -u 1000 -G kinnect kinnect
-
-USER kinnect
+COPY --from=frontend-builder /app/frontend/dist /app/frontend/dist
 
 # Tell the Go server where the frontend is
 ENV FRONTEND_DIR=/app/frontend/dist
+ENV PORT=3000
 
 EXPOSE 3000
 
-# Health check against the main app port (Render injects PORT)
-HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
-    CMD curl -f http://localhost:${PORT:-3000}/api/health || exit 1
-
-CMD ["./kinnect-server"]
+# No health check on scratch (curl unavailable), rely on HTTP status
+ENTRYPOINT ["/app/kinnect-server"]

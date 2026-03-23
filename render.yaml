@@ -7,3 +7,5 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
+      - key: DOCKER_BUILDKIT
+        value: "1"

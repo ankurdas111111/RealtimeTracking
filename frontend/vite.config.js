@@ -21,11 +21,28 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     emptyOutDir: true,
+    minify: 'terser',
+    cssCodeSplit: true,
+    terserOptions: {
+      compress: {
+        drop_console: true,
+        passes: 3
+      },
+      mangle: true,
+      format: {
+        comments: false
+      }
+    },
     rollupOptions: {
       output: {
         manualChunks: {
           maplibre: ['maplibre-gl']
         }
+      },
+      treeshake: {
+        moduleSideEffects: false,
+        propertyReadSideEffects: false,
+        tryCatchDeoptimization: false
       }
     }
   },

@@ -1,0 +1,91 @@
+
+--- BENCHMARK v1 (socketio) ---
+URL=http://localhost:3000
+--- RESULT_JSON_START ---
+{
+  "name": "v1",
+  "url": "http://localhost:3000",
+  "protocol": "socketio",
+  "config": {
+    "users": 100,
+    "durationSec": 30,
+    "intervalMs": 250,
+    "httpIterations": 30,
+    "httpConcurrency": 25,
+    "httpDurationSec": 10
+  },
+  "http": {
+    "healthProbe": {
+      "path": "/health",
+      "iterations": 30,
+      "ok": 28,
+      "non2xx": 2,
+      "errors": 0,
+      "latencyMs": {
+        "p50": 1,
+        "p95": 1,
+        "p99": 1,
+        "max": 1,
+        "samples": 30
+      }
+    },
+    "csrfProbe": {
+      "path": "/api/csrf",
+      "iterations": 30,
+      "ok": 30,
+      "non2xx": 0,
+      "errors": 0,
+      "latencyMs": {
+        "p50": 0,
+        "p95": 1,
+        "p99": 1,
+        "max": 1,
+        "samples": 30
+      }
+    },
+    "healthBurst": {
+      "path": "/health",
+      "durationSec": 10,
+      "concurrency": 25,
+      "totalRequests": 58771,
+      "ok": 0,
+      "non2xx": 58771,
+      "errors": 0,
+      "reqPerSec": 5877.1,
+      "latencyMs": {
+        "p50": 2,
+        "p95": 4,
+        "p99": 5,
+        "max": 8,
+        "samples": 58771
+      }
+    }
+  },
+  "realtime": {
+    "error": "register failed unified-bench-v1-10@example.com: status=429 body=null",
+    "users": 100
+  },
+  "health": {
+    "before": {
+      "status": "ok",
+      "uptime": 15,
+      "connections": 0,
+      "rooms": 19,
+      "db": "connected",
+      "eventLoopLagMs": {
+        "min": 19.14,
+        "p50": 21.05,
+        "p99": 22.07,
+        "max": 28.21
+      },
+      "memoryMB": {
+        "rss": 50.9,
+        "heapUsed": 13.1,
+        "heapTotal": 14.5
+      },
+      "positionQueueDepth": 0
+    },
+    "after": null
+  }
+}
+--- RESULT_JSON_END ---

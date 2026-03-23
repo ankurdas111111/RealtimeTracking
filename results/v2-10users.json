@@ -1,0 +1,150 @@
+
+--- BENCHMARK v2 (socketio) ---
+URL=http://localhost:3001
+--- RESULT_JSON_START ---
+{
+  "name": "v2",
+  "url": "http://localhost:3001",
+  "protocol": "socketio",
+  "config": {
+    "users": 10,
+    "durationSec": 20,
+    "intervalMs": 250,
+    "httpIterations": 30,
+    "httpConcurrency": 25,
+    "httpDurationSec": 10
+  },
+  "http": {
+    "healthProbe": {
+      "path": "/health",
+      "iterations": 30,
+      "ok": 30,
+      "non2xx": 0,
+      "errors": 0,
+      "latencyMs": {
+        "p50": 1,
+        "p95": 3,
+        "p99": 22,
+        "max": 22,
+        "samples": 30
+      }
+    },
+    "csrfProbe": {
+      "path": "/api/csrf",
+      "iterations": 30,
+      "ok": 30,
+      "non2xx": 0,
+      "errors": 0,
+      "latencyMs": {
+        "p50": 1,
+        "p95": 1,
+        "p99": 1,
+        "max": 1,
+        "samples": 30
+      }
+    },
+    "healthBurst": {
+      "path": "/health",
+      "durationSec": 10,
+      "concurrency": 25,
+      "totalRequests": 54080,
+      "ok": 54080,
+      "non2xx": 0,
+      "errors": 0,
+      "reqPerSec": 5408,
+      "latencyMs": {
+        "p50": 4,
+        "p95": 7,
+        "p99": 13,
+        "max": 24,
+        "samples": 54080
+      }
+    }
+  },
+  "realtime": {
+    "users": 10,
+    "connected": 10,
+    "roomJoinFailures": 0,
+    "durationSec": 21.2,
+    "sent": 790,
+    "sentPerSec": 37.26,
+    "received": 7110,
+    "receivedPerSec": 335.31,
+    "expectedMaxFanoutEvents": 7110,
+    "fanoutDeliveryRatio": 1,
+    "connectLatencyMs": {
+      "p50": 5,
+      "p95": 15,
+      "p99": 15,
+      "max": 15,
+      "samples": 10
+    },
+    "updateLatencyServerTsToClientMs": {
+      "p50": 7,
+      "p95": 13,
+      "p99": 19,
+      "max": 22,
+      "samples": 7110
+    },
+    "errors": 0
+  },
+  "health": {
+    "before": {
+      "status": "ok",
+      "uptime": 59,
+      "connections": 0,
+      "rooms": 14,
+      "db": "connected",
+      "eventLoopLagMs": {
+        "min": 19.04,
+        "p50": 21.05,
+        "p99": 22.09,
+        "max": 37.29
+      },
+      "memoryMB": {
+        "rss": 48.6,
+        "heapUsed": 27.9,
+        "heapTotal": 30.2
+      },
+      "perf": {
+        "counters": {},
+        "histograms": {}
+      }
+    },
+    "after": {
+      "status": "ok",
+      "uptime": 92,
+      "connections": 0,
+      "rooms": 15,
+      "db": "connected",
+      "eventLoopLagMs": {
+        "min": 15.39,
+        "p50": 21.04,
+        "p99": 23.12,
+        "max": 37.29
+      },
+      "memoryMB": {
+        "rss": 152,
+        "heapUsed": 42.1,
+        "heapTotal": 72.7
+      },
+      "perf": {
+        "counters": {
+          "ws.connect": 10,
+          "getVisibleSockets.calls": 810,
+          "position.total": 790,
+          "ws.disconnect": 10
+        },
+        "histograms": {
+          "getVisibleSockets": {
+            "p50": 0.004,
+            "p95": 0.017,
+            "p99": 0.026,
+            "count": 810
+          }
+        }
+      }
+    }
+  }
+}
+--- RESULT_JSON_END ---

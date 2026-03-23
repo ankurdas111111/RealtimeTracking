@@ -1,0 +1,128 @@
+
+--- BENCHMARK v3 (ws) ---
+URL=http://localhost:3002
+--- RESULT_JSON_START ---
+{
+  "name": "v3",
+  "url": "http://localhost:3002",
+  "protocol": "ws",
+  "config": {
+    "users": 50,
+    "durationSec": 30,
+    "intervalMs": 250,
+    "httpIterations": 30,
+    "httpConcurrency": 25,
+    "httpDurationSec": 10
+  },
+  "http": {
+    "healthProbe": {
+      "path": "/health",
+      "iterations": 30,
+      "ok": 30,
+      "non2xx": 0,
+      "errors": 0,
+      "latencyMs": {
+        "p50": 1,
+        "p95": 1,
+        "p99": 13,
+        "max": 13,
+        "samples": 30
+      }
+    },
+    "csrfProbe": {
+      "path": "/api/csrf",
+      "iterations": 30,
+      "ok": 30,
+      "non2xx": 0,
+      "errors": 0,
+      "latencyMs": {
+        "p50": 1,
+        "p95": 1,
+        "p99": 1,
+        "max": 1,
+        "samples": 30
+      }
+    },
+    "healthBurst": {
+      "path": "/health",
+      "durationSec": 10,
+      "concurrency": 25,
+      "totalRequests": 62101,
+      "ok": 62101,
+      "non2xx": 0,
+      "errors": 0,
+      "reqPerSec": 6210.1,
+      "latencyMs": {
+        "p50": 3,
+        "p95": 8,
+        "p99": 13,
+        "max": 37,
+        "samples": 62101
+      }
+    }
+  },
+  "realtime": {
+    "users": 50,
+    "connected": 50,
+    "roomJoinFailures": 0,
+    "durationSec": 31.2,
+    "sent": 5950,
+    "sentPerSec": 190.69,
+    "received": 291550,
+    "receivedPerSec": 9343.95,
+    "expectedMaxFanoutEvents": 291550,
+    "fanoutDeliveryRatio": 1,
+    "connectLatencyMs": {
+      "p50": 1,
+      "p95": 2,
+      "p99": 4,
+      "max": 4,
+      "samples": 50
+    },
+    "updateLatencyServerTsToClientMs": {
+      "p50": 25,
+      "p95": 45,
+      "p99": 48,
+      "max": 54,
+      "samples": 291550
+    },
+    "errors": 0
+  },
+  "health": {
+    "before": {
+      "connections": 1,
+      "db": "ok",
+      "memory": {
+        "alloc": 50508192,
+        "numGC": 46,
+        "sys": 81485856,
+        "totalAlloc": 549078544
+      },
+      "perf": {
+        "counters": {},
+        "histograms": {}
+      },
+      "rooms": 15,
+      "status": "ok",
+      "uptime": 208
+    },
+    "after": {
+      "connections": 2,
+      "db": "ok",
+      "memory": {
+        "alloc": 51625120,
+        "numGC": 751,
+        "sys": 89940000,
+        "totalAlloc": 2717245176
+      },
+      "perf": {
+        "counters": {},
+        "histograms": {}
+      },
+      "rooms": 16,
+      "status": "ok",
+      "uptime": 252
+    }
+  }
+}
+--- RESULT_JSON_END ---
