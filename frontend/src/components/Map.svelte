@@ -64,6 +64,11 @@
     checkMobile();
     window.addEventListener('resize', checkMobile);
 
+    // Configure MapLibre GL worker (required for proper rendering)
+    // Point to the worker file in public directory
+    maplibregl.workerUrl = '/maplibre-gl-csp-worker.js';
+    maplibregl.workerCount = 2;
+
     map = new maplibregl.Map({
       container: mapContainer,
       style: RASTER_STYLE,
