@@ -112,6 +112,74 @@ export class KalmanFilter {
 }
 
 /**
+ * Velocity-tracking Kalman filter for GPS speed estimation.
+ *
+ * This is the key technique used by Google Maps to eliminate false speed
+ * readings. Instead of trusting raw GPS speed directly, it maintains a
+ * filtered velocity state. A sudden spike from 0 → 30 km/h is heavily
+ * attenuated because the prior state (stationary) carries weight.
+ *
+ * State vector: [speed_kmh]
+ * Process model: speed changes slowly (constant-speed assumption between fixes)
+ * Measurement: GPS Doppler speed (or position-implied speed)
+ *
+ * Key properties:
+ *  - If previous filtered speed was 0, a single 30 km/h reading becomes ~3 km/h
+ *  - Real sustained movement builds up over consecutive fixes → converges to true speed
+ *  - Stationary noise averages out to 0 over time
+ */
+export class VelocityKalmanFilter {
+  /**
+   * @param {number} Q  Process noise — how fast speed is allowed to change.
+   *                    Higher = reacts faster to real acceleration.
+   *                    Lower  = smoother, slower to trust new speeds.
+   * @param {number} R  Measurement noise — how much we distrust GPS speed.
+   *                    Higher = ignore GPS speed spikes more aggressively.
+   */
+  constructor({ Q = 2, R = 25 } = {}) {
+    this._Q = Q;
+    this._R = R;
+    this._x = 0;    // filtered speed estimate (km/h)
+    this._p = 100;  // high initial uncertainty
+    this._warm = false;
+  }
+
+  reset() {
+    this._x = 0;
+    this._p = 100;
+    this._warm = false;
+  }
+
+  /**
+   * Feed a new speed measurement and return filtered speed.
+   * @param {number} measuredKmh  Raw speed in km/h (GPS Doppler or position-implied)
+   * @param {number} [dtSec=1]    Time since last fix in seconds
+   * @returns {number}            Filtered speed in km/h
+   */
+  filter(measuredKmh, dtSec = 1) {
+    // Scale process noise by time elapsed (longer gaps = more uncertainty)
+    const Q = this._Q * Math.min(dtSec, 5);
+
+    // Predict: assume speed decays slightly toward 0 when no movement (drag model)
+    // This helps return to 0 quickly when you stop
+    const decay = 0.85;
+    this._x = this._x * decay;
+    this._p = this._p * decay * decay + Q;
+
+    // Update: incorporate measurement
+    const K = this._p / (this._p + this._R);   // Kalman gain
+    this._x += K * (measuredKmh - this._x);    // weighted correction
+    this._p *= (1 - K);
+
+    this._warm = true;
+    // Clamp noise floor
+    return this._x < 1.0 ? 0 : Number(this._x.toFixed(1));
+  }
+
+  get isWarm() { return this._warm; }
+}
+
+/**
  * Pre-configured pair of Kalman filters for GPS lat/lng smoothing.
  * Provides a convenient API that feeds both axes simultaneously.
  */

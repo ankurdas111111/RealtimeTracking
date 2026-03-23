@@ -27,7 +27,7 @@
   import TrackingNowCard from '../components/primitives/TrackingNowCard.svelte';
   import OnboardingOverlay from '../components/OnboardingOverlay.svelte';
   import { calculateDistance } from '../lib/tracking.js';
-  import { GPSKalmanFilter } from '../lib/kalman.js';
+  import { GPSKalmanFilter, VelocityKalmanFilter } from '../lib/kalman.js';
   import { recordFix, resetMetrics, trackingMetrics } from '../lib/stores/metrics.js';
   import { bufferPosition, clearBuffer, bufferSize } from '../lib/offlineBuffer.js';
   import { startGeo, stopGeo, warmUp, checkPermission, isNativePlatform, startBackgroundGeo, stopBackgroundGeo } from '../lib/geoProvider.js';
@@ -53,6 +53,7 @@
   let lastRawLng = null;
   let geoPermission = 'unknown';
   const gpsFilter = new GPSKalmanFilter({ Q: 3, R: 10 });
+  const speedFilter = new VelocityKalmanFilter({ Q: 2, R: 25 });
 
   $: if (!$authUser) push('/login');
   $: isAdmin = $authUser && $authUser.role === 'admin';
@@ -205,25 +206,24 @@
       if (impliedKmh > 350) return; // absolute cap (faster than any ground vehicle)
     }
 
-    // Derive speed from actual position change — works regardless of GPS accuracy.
-    // GPS Doppler speed is theoretically accurate but phones report garbage (10-30 km/h)
-    // when signal is poor or on cold start. Position-implied speed can't lie:
-    // if you haven't moved, it's 0.
-    //
-    // Strategy: take the LOWER of GPS-reported speed vs position-implied speed.
-    // - Stationary with bad GPS (reports 30 km/h): implied ≈ 0 → speed = 0 ✓
-    // - Actually driving at 60 km/h: both agree → speed = 60 ✓
-    // - Walking at 5 km/h with ok GPS: both agree → speed = 5 ✓
+    // Google-style velocity Kalman filter:
+    // Feed BOTH GPS Doppler speed and position-implied speed into the filter.
+    // The filter weights them against prior state — a sudden 30 km/h spike from
+    // a stationary prior gets heavily attenuated (Kalman gain is low when uncertainty is low).
+    // Sustained real movement builds up over consecutive fixes and converges to true speed.
     const rawKmh = rawSpeed != null && Number.isFinite(rawSpeed) ? rawSpeed * 3.6 : 0;
+    const dtSec = lastAcceptedFix ? Math.max((now - lastAcceptedFix.ts) / 1000, 0.1) : 1;
     let impliedKmh = 0;
     if (lastAcceptedFix) {
       const movedM = calculateDistance(lastAcceptedFix.latitude, lastAcceptedFix.longitude, rawLat, rawLng);
-      const dtSec = Math.max((now - lastAcceptedFix.ts) / 1000, 1);
       impliedKmh = (movedM / dtSec) * 3.6;
     }
-    // Use lower of the two; clamp noise floor to 0
-    const candidateKmh = rawKmh > 0 ? Math.min(rawKmh, impliedKmh > 0 ? impliedKmh * 1.5 : rawKmh) : impliedKmh;
-    const speed = candidateKmh >= 1.0 ? Number(candidateKmh.toFixed(1)) : 0;
+    // Use the lower of GPS and implied as the measurement — can't be moving
+    // faster than position actually changed, regardless of what GPS chip says
+    const measuredKmh = rawKmh > 0 && impliedKmh > 0
+      ? Math.min(rawKmh, impliedKmh * 1.5)  // allow GPS slightly above implied (curves/acceleration)
+      : (impliedKmh > 0 ? impliedKmh : rawKmh);
+    const speed = speedFilter.filter(measuredKmh, dtSec);
 
     gpsFilter.setSpeed(speed);
     let latitude, longitude, kalmanCorrectionM;
@@ -320,6 +320,7 @@
     lastRawLat = null;
     lastRawLng = null;
     gpsFilter.reset();
+    speedFilter.reset();
     resetMetrics();
     clearBuffer();
     setBufferedCount(0);
