@@ -205,10 +205,24 @@
       if (impliedKmh > 350) return; // absolute cap (faster than any ground vehicle)
     }
 
-    // Clamp GPS speed noise: phones report small non-zero speeds when stationary.
-    // Anything below 1 km/h is treated as 0 to avoid false "moving" readings.
+    // GPS speed is unreliable — cross-validate it before trusting it.
+    // Rule 1: poor accuracy → GPS speed is meaningless (hardware reports garbage when signal is weak)
+    // Rule 2: actual position movement < accuracy radius → we haven't really moved, so speed = 0
+    // Rule 3: clamp anything under 1 km/h to zero (GPS noise floor)
     const rawKmh = rawSpeed != null && Number.isFinite(rawSpeed) ? rawSpeed * 3.6 : 0;
-    const speed = rawKmh >= 1.0 ? Number(rawKmh.toFixed(1)) : 0;
+    let speed = 0;
+    if (rawKmh >= 1.0 && accuracy <= 50) {
+      // Only trust GPS speed when signal is good (accuracy ≤ 50 m)
+      if (lastAcceptedFix) {
+        const movedM = calculateDistance(lastAcceptedFix.latitude, lastAcceptedFix.longitude, rawLat, rawLng);
+        // If actual movement is within the accuracy radius the device hasn't really moved
+        if (movedM > accuracy * 0.5) {
+          speed = Number(rawKmh.toFixed(1));
+        }
+      } else {
+        speed = Number(rawKmh.toFixed(1));
+      }
+    }
 
     gpsFilter.setSpeed(speed);
     let latitude, longitude, kalmanCorrectionM;
