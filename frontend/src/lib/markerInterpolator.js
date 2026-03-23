@@ -10,6 +10,7 @@
 
 const animations = new Map();
 const _lastCallAt = new Map();
+const _lastVelocity = new Map(); // id → {dlng, dlat, dtMs} — velocity for predictive positioning
 
 /**
  * Smoothly animate a MapLibre marker from its current position to a new one.
@@ -28,11 +29,11 @@ export function animateMarkerTo(id, marker, target, duration) {
   }
 
   const now = performance.now();
+  const lastCallTime = _lastCallAt.get(id);
   if (duration === undefined) {
-    const last = _lastCallAt.get(id);
-    duration = last ? Math.min(Math.max((now - last) * 0.85, 100), 600) : 300;
+    duration = lastCallTime ? Math.min(Math.max((now - lastCallTime) * 0.85, 100), 600) : 300;
   }
-  _lastCallAt.set(id, now);
+
   const prev = animations.get(id);
   if (prev) cancelAnimationFrame(prev.raf);
 
@@ -40,6 +41,25 @@ export function animateMarkerTo(id, marker, target, duration) {
   const startLng = startLL.lng;
   const startLat = startLL.lat;
   const [endLng, endLat] = target;
+
+  // Record velocity for predictive positioning
+  if (lastCallTime && (now - lastCallTime) < 5000) {
+    const dtMs = now - lastCallTime;
+    const prevVel = _lastVelocity.get(id);
+    const rawDlng = endLng - startLng;
+    const rawDlat = endLat - startLat;
+    // Exponential smoothing of velocity (alpha = 0.4)
+    const alpha = 0.4;
+    _lastVelocity.set(id, {
+      dlng: prevVel ? alpha * rawDlng + (1 - alpha) * prevVel.dlng : rawDlng,
+      dlat: prevVel ? alpha * rawDlat + (1 - alpha) * prevVel.dlat : rawDlat,
+      dtMs,
+    });
+  } else {
+    _lastVelocity.delete(id);
+  }
+
+  _lastCallAt.set(id, now);
 
   const dLng = endLng - startLng;
   const dLat = endLat - startLat;
@@ -49,15 +69,29 @@ export function animateMarkerTo(id, marker, target, duration) {
     return;
   }
 
+  // Predictive overshoot: project position slightly beyond target based on velocity
+  const vel = _lastVelocity.get(id);
+  let predictLng = endLng;
+  let predictLat = endLat;
+  if (vel && duration > 0 && vel.dtMs > 0) {
+    const overshootFactor = Math.min(duration / vel.dtMs, 1) * 0.25; // max 25% overshoot
+    predictLng = endLng + vel.dlng * overshootFactor;
+    predictLat = endLat + vel.dlat * overshootFactor;
+  }
+
+  const totalDlng = predictLng - startLng;
+  const totalDlat = predictLat - startLat;
+
   const startTime = performance.now();
 
   function step(now) {
     const elapsed = now - startTime;
     const t = Math.min(elapsed / duration, 1);
+    // Cubic ease-out for natural deceleration
     const ease = 1 - Math.pow(1 - t, 3);
 
-    const lng = startLng + dLng * ease;
-    const lat = startLat + dLat * ease;
+    const lng = startLng + totalDlng * ease;
+    const lat = startLat + totalDlat * ease;
     marker.setLngLat([lng, lat]);
 
     if (t < 1) {
@@ -78,6 +112,7 @@ export function cancelAnimation(id) {
     animations.delete(id);
   }
   _lastCallAt.delete(id);
+  _lastVelocity.delete(id);
 }
 
 export function cancelAllAnimations() {
@@ -86,4 +121,5 @@ export function cancelAllAnimations() {
   }
   animations.clear();
   _lastCallAt.clear();
+  _lastVelocity.clear();
 }

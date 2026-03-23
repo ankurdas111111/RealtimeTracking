@@ -29,8 +29,13 @@ export default defineConfig({
       // doesn't try to bundle it (applies for both web and capacitor builds).
       external: ['@capacitor-community/background-geolocation'],
       output: {
-        manualChunks: {
-          maplibre: ['maplibre-gl']
+        manualChunks(id) {
+          if (id.includes('maplibre-gl')) return 'maplibre';
+          if (id.includes('socket.io-client')) return 'socket';
+          if (id.includes('node_modules/svelte')) return 'svelte-runtime';
+          if (id.includes('/pages/LiveViewer')) return 'page-live';
+          if (id.includes('/pages/WatchViewer')) return 'page-watch';
+          if (id.includes('/pages/Monitoring')) return 'page-monitoring';
         }
       },
       treeshake: true

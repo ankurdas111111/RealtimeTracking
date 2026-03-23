@@ -154,7 +154,7 @@
   }
 
   .nav-toggle:hover:not(.active) {
-    background: var(--glass-1, rgba(255, 255, 255, 0.72));
+    background: var(--glass-bg, rgba(255, 255, 255, 0.72));
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
     box-shadow:

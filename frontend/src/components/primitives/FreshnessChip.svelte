@@ -62,11 +62,11 @@
     font-weight: 600;
     letter-spacing: 0.01em;
     font-variant-numeric: tabular-nums;
-    background: var(--glass-1, rgba(255,255,255,0.85));
-    backdrop-filter: var(--blur-sm, blur(16px));
-    -webkit-backdrop-filter: var(--blur-sm, blur(16px));
-    border: 1px solid var(--glass-border, rgba(255,255,255,0.6));
-    box-shadow: var(--shadow-glass-sm, 0 2px 8px rgba(0,0,0,0.08));
+    background: var(--glass-bg, rgba(255,255,255,0.85));
+    backdrop-filter: var(--glass-blur-sm, blur(12px) saturate(1.4));
+    -webkit-backdrop-filter: var(--glass-blur-sm, blur(12px) saturate(1.4));
+    border: 1px solid var(--glass-border, rgba(15,23,42,0.10));
+    box-shadow: var(--map-chip-shadow, 0 2px 8px rgba(0,0,0,0.08));
     color: var(--text-secondary);
     transition: color 0.2s, background 0.2s;
     white-space: nowrap;

@@ -42,9 +42,9 @@
     white-space: nowrap;
     padding: 6px 10px;
     border-radius: 999px;
-    background: rgba(15, 23, 42, 0.14);
-    border: 1px solid rgba(15, 23, 42, 0.2);
-    color: #0f172a;
+    background: var(--surface-inset, rgba(15, 23, 42, 0.10));
+    border: 1px solid var(--border-subtle, rgba(15, 23, 42, 0.15));
+    color: var(--text-secondary);
     font-size: 11px;
     font-weight: 600;
     backdrop-filter: blur(8px);
@@ -54,12 +54,24 @@
   .pill.ok {
     background: rgba(16, 185, 129, 0.14);
     border-color: rgba(16, 185, 129, 0.3);
-    color: #047857;
+    color: var(--success-700, #047857);
   }
 
   .pill.warn {
-    background: rgba(245, 158, 11, 0.16);
-    border-color: rgba(245, 158, 11, 0.38);
-    color: #b45309;
+    background: rgba(245, 158, 11, 0.14);
+    border-color: rgba(245, 158, 11, 0.32);
+    color: var(--warning-700, #b45309);
+  }
+
+  :global([data-theme="dark"]) .pill.ok {
+    background: rgba(16, 185, 129, 0.18);
+    border-color: rgba(52, 211, 153, 0.35);
+    color: var(--success-400, #34d399);
+  }
+
+  :global([data-theme="dark"]) .pill.warn {
+    background: rgba(245, 158, 11, 0.18);
+    border-color: rgba(251, 191, 36, 0.35);
+    color: var(--warning-400, #fbbf24);
   }
 </style>

@@ -36,16 +36,19 @@
   --success-400: #34d399;
   --success-500: #10b981;
   --success-600: #059669;
+  --success-700: #047857;
 
   /* Warning (Amber) */
   --warning-400: #fbbf24;
   --warning-500: #f59e0b;
   --warning-600: #d97706;
+  --warning-700: #b45309;
 
   /* Danger (Red) */
   --danger-400: #f87171;
   --danger-500: #ef4444;
   --danger-600: #dc2626;
+  --danger-700: #b91c1c;
 
   /* ── Semantic Surface Tokens (Light) ────────────────────────────────── */
   --surface-0: var(--gray-50);                     /* page background */
@@ -182,6 +185,25 @@
   --shadow-panel-right: -4px 0 24px rgba(0, 0, 0, 0.08);
   --shadow-sheet: 0 -8px 32px rgba(0, 0, 0, 0.12);
   --shadow-navbar: 0 1px 3px rgba(0, 0, 0, 0.06);
+
+  /* ── Glass Surface System ─────────────────────────────────────── */
+  --glass-bg:          rgba(255, 255, 255, 0.75);
+  --glass-bg-strong:   rgba(255, 255, 255, 0.90);
+  --glass-border:      rgba(15, 23, 42, 0.08);
+  --glass-border-strong: rgba(15, 23, 42, 0.14);
+  --glass-blur:        blur(20px) saturate(1.8);
+  --glass-blur-sm:     blur(12px) saturate(1.4);
+  --glass-shadow:      0 4px 24px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(255,255,255,0.6);
+
+  /* ── Map Overlay UI ───────────────────────────────────────────── */
+  --map-chip-bg:       rgba(255, 255, 255, 0.88);
+  --map-chip-border:   rgba(15, 23, 42, 0.10);
+  --map-chip-shadow:   0 2px 12px rgba(0, 0, 0, 0.10);
+
+  /* ── Brand / Semantic ─────────────────────────────────────────── */
+  --brand-sos:         #ef4444;
+  --brand-safe:        #10b981;
+  --brand-guardian:    #8b5cf6;
 }
 
 /* ── Color Tokens (Dark) ───────────────────────────────────────────────── */
@@ -218,6 +240,17 @@
   --shadow-panel-right: -4px 0 24px rgba(0, 0, 0, 0.25);
   --shadow-sheet: 0 -8px 32px rgba(0, 0, 0, 0.35);
   --shadow-navbar: 0 1px 3px rgba(0, 0, 0, 0.20);
+
+  --glass-bg:          rgba(15, 15, 20, 0.72);
+  --glass-bg-strong:   rgba(20, 20, 30, 0.88);
+  --glass-border:      rgba(255, 255, 255, 0.08);
+  --glass-border-strong: rgba(255, 255, 255, 0.14);
+  --glass-blur:        blur(20px) saturate(1.8);
+  --glass-blur-sm:     blur(12px) saturate(1.4);
+  --glass-shadow:      0 4px 24px rgba(0, 0, 0, 0.30), 0 0 0 1px rgba(255,255,255,0.08);
+  --map-chip-bg:       rgba(20, 20, 30, 0.82);
+  --map-chip-border:   rgba(255, 255, 255, 0.10);
+  --map-chip-shadow:   0 2px 12px rgba(0, 0, 0, 0.30);
 }
 
 /* Auto dark mode fallback */
@@ -254,6 +287,15 @@
     --shadow-panel-right: -4px 0 24px rgba(0, 0, 0, 0.25);
     --shadow-sheet: 0 -8px 32px rgba(0, 0, 0, 0.35);
     --shadow-navbar: 0 1px 3px rgba(0, 0, 0, 0.20);
+
+    --glass-bg:          rgba(15, 15, 20, 0.72);
+    --glass-bg-strong:   rgba(20, 20, 30, 0.88);
+    --glass-border:      rgba(255, 255, 255, 0.08);
+    --glass-border-strong: rgba(255, 255, 255, 0.14);
+    --glass-shadow:      0 4px 24px rgba(0, 0, 0, 0.30), 0 0 0 1px rgba(255,255,255,0.08);
+    --map-chip-bg:       rgba(20, 20, 30, 0.82);
+    --map-chip-border:   rgba(255, 255, 255, 0.10);
+    --map-chip-shadow:   0 2px 12px rgba(0, 0, 0, 0.30);
   }
 }
 
@@ -348,6 +390,53 @@ body {
 @keyframes toast-progress {
   from { transform: scaleX(1); }
   to   { transform: scaleX(0); }
+}
+
+/* Marker entrance pop */
+@keyframes markerPop {
+  0%   { transform: scale(0) translateY(12px); opacity: 0; }
+  65%  { transform: scale(1.18) translateY(-4px); opacity: 1; }
+  100% { transform: scale(1) translateY(0); }
+}
+
+/* SOS flood reveal */
+@keyframes sos-flood {
+  0%   { clip-path: circle(0% at 50% 50%); }
+  100% { clip-path: circle(150% at 50% 50%); }
+}
+
+/* Camera shake for SOS alert entrance */
+@keyframes camera-shake {
+  0%, 100% { transform: translateX(0); }
+  15%  { transform: translateX(-6px) rotate(-0.5deg); }
+  30%  { transform: translateX(5px) rotate(0.5deg); }
+  45%  { transform: translateX(-4px); }
+  60%  { transform: translateX(3px); }
+  75%  { transform: translateX(-2px); }
+}
+
+/* Subtle ripple for button confirmation */
+@keyframes ripple-out {
+  0%   { transform: scale(0.8); opacity: 0.6; }
+  100% { transform: scale(2.4); opacity: 0; }
+}
+
+/* Quick-action bar slide-up */
+@keyframes slideUpFade {
+  from { transform: translateY(20px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+
+/* Status dot pulse for tracking */
+@keyframes tracking-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.5); }
+  50%       { box-shadow: 0 0 0 8px rgba(16, 185, 129, 0); }
+}
+
+/* SOS urgent pulse */
+@keyframes sos-urgent-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.6); }
+  50%       { box-shadow: 0 0 0 12px rgba(239, 68, 68, 0); }
 }
 
 

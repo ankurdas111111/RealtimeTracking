@@ -12,6 +12,7 @@
 
   export let embedded = false;
   let statsOpen = false;
+  let debugTaps = 0;
 
   const dispatch = createEventDispatcher();
 
@@ -100,12 +101,19 @@
       {/if}
 
       {#if $tracking && $trackingMetrics.fixCount > 0}
-        <button class="tracking-stats-toggle" on:click={() => statsOpen = !statsOpen}>
+        <!-- GPS accuracy status pill — user-friendly, no raw telemetry -->
+        <div class="gps-status-pill">
           <span class="accuracy-dot" class:green={$trackingMetrics.lastAccuracy != null && $trackingMetrics.lastAccuracy <= 15} class:yellow={$trackingMetrics.lastAccuracy != null && $trackingMetrics.lastAccuracy > 15 && $trackingMetrics.lastAccuracy <= 50} class:red={$trackingMetrics.lastAccuracy != null && $trackingMetrics.lastAccuracy > 50}></span>
-          GPS {$trackingMetrics.lastAccuracy != null ? `~${$trackingMetrics.lastAccuracy}m` : '...'} &middot; {$trackingMetrics.filterState}
-          {#if $latencyMetrics.avgE2eMs != null} &middot; {$latencyMetrics.avgE2eMs}ms{/if}
-          <svg class="chevron" class:open={statsOpen} xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
-        </button>
+          {#if $trackingMetrics.lastAccuracy != null}
+            {$trackingMetrics.lastAccuracy <= 15 ? 'High accuracy' : $trackingMetrics.lastAccuracy <= 50 ? 'Good accuracy' : 'Low accuracy'}
+            · ±{$trackingMetrics.lastAccuracy}m
+          {:else}
+            Acquiring GPS…
+          {/if}
+          <!-- Debug mode: tap 5 times on the pill to reveal raw stats -->
+          <!-- svelte-ignore a11y-click-events-have-key-events -->
+          <span class="debug-tap" on:click={() => { debugTaps++; if (debugTaps >= 5) { statsOpen = !statsOpen; debugTaps = 0; } }} aria-hidden="true"></span>
+        </div>
         {#if statsOpen}
           <div class="tracking-stats">
             <div class="stat-row"><span>Accuracy</span><span>{$trackingMetrics.lastAccuracy ?? '-'}m (avg {$trackingMetrics.avgAccuracy ?? '-'}m)</span></div>
@@ -261,12 +269,17 @@
         {/if}
 
         {#if $tracking && $trackingMetrics.fixCount > 0}
-          <button class="tracking-stats-toggle" on:click={() => statsOpen = !statsOpen}>
+          <div class="gps-status-pill">
             <span class="accuracy-dot" class:green={$trackingMetrics.lastAccuracy != null && $trackingMetrics.lastAccuracy <= 15} class:yellow={$trackingMetrics.lastAccuracy != null && $trackingMetrics.lastAccuracy > 15 && $trackingMetrics.lastAccuracy <= 50} class:red={$trackingMetrics.lastAccuracy != null && $trackingMetrics.lastAccuracy > 50}></span>
-            GPS {$trackingMetrics.lastAccuracy != null ? `~${$trackingMetrics.lastAccuracy}m` : '...'} &middot; {$trackingMetrics.filterState}
-            {#if $latencyMetrics.avgE2eMs != null} &middot; {$latencyMetrics.avgE2eMs}ms{/if}
-            <svg class="chevron" class:open={statsOpen} xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
-          </button>
+            {#if $trackingMetrics.lastAccuracy != null}
+              {$trackingMetrics.lastAccuracy <= 15 ? 'High accuracy' : $trackingMetrics.lastAccuracy <= 50 ? 'Good accuracy' : 'Low accuracy'}
+              · ±{$trackingMetrics.lastAccuracy}m
+            {:else}
+              Acquiring GPS…
+            {/if}
+            <!-- svelte-ignore a11y-click-events-have-key-events -->
+            <span class="debug-tap" on:click={() => { debugTaps++; if (debugTaps >= 5) { statsOpen = !statsOpen; debugTaps = 0; } }} aria-hidden="true"></span>
+          </div>
           {#if statsOpen}
             <div class="tracking-stats">
               <div class="stat-row"><span>Accuracy</span><span>{$trackingMetrics.lastAccuracy ?? '-'}m (avg {$trackingMetrics.avgAccuracy ?? '-'}m)</span></div>
@@ -392,21 +405,25 @@
 {/if}
 
 <style>
-  .tracking-stats-toggle {
-    display: flex;
+  .gps-status-pill {
+    display: inline-flex;
     align-items: center;
     gap: 6px;
-    background: none;
-    border: none;
-    cursor: pointer;
-    padding: 6px 0;
-    font-size: var(--text-xs, 12px);
-    color: var(--text-secondary, #666);
-    width: 100%;
-    text-align: left;
+    padding: 4px 10px;
+    border-radius: var(--radius-full);
+    font-size: var(--text-xs);
+    font-weight: 500;
+    color: var(--text-secondary);
+    background: var(--surface-inset);
+    border: 1px solid var(--border-subtle);
+    margin-top: 6px;
+    position: relative;
+    user-select: none;
   }
-  .tracking-stats-toggle:hover {
-    color: var(--text-primary, #333);
+  .debug-tap {
+    position: absolute;
+    inset: 0;
+    cursor: default;
   }
   .accuracy-dot {
     display: inline-block;
@@ -419,13 +436,6 @@
   .accuracy-dot.green { background: var(--success-500, #22c55e); }
   .accuracy-dot.yellow { background: var(--warning-500, #eab308); }
   .accuracy-dot.red { background: var(--danger-500, #ef4444); }
-  .chevron {
-    margin-left: auto;
-    transition: transform 0.15s ease;
-  }
-  .chevron.open {
-    transform: rotate(180deg);
-  }
   .tracking-stats {
     padding: 4px 0 2px 14px;
     font-size: var(--text-2xs, 10px);

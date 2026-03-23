@@ -107,7 +107,7 @@
   }
 
   .stat {
-    background: var(--surface-secondary, #f8fafc);
+    background: var(--surface-inset, rgba(15, 23, 42, 0.04));
     border-radius: 12px;
     padding: 10px;
     display: flex;
@@ -153,7 +153,7 @@
   .line {
     height: 12px;
     border-radius: 999px;
-    background: linear-gradient(90deg, #e2e8f0, #f1f5f9, #e2e8f0);
+    background: linear-gradient(90deg, var(--border-default), var(--surface-hover), var(--border-default));
     background-size: 220% 100%;
     animation: shimmer 1.2s linear infinite;
     margin-bottom: 8px;

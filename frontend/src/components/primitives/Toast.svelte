@@ -34,7 +34,7 @@
 <style>
   .toast-container {
     position: fixed;
-    top: var(--space-4);
+    top: calc(var(--safe-top, 0px) + var(--space-4));
     right: var(--space-4);
     z-index: var(--z-toast, 6000);
     display: flex;
@@ -46,7 +46,7 @@
 
   @media (max-width: 767px) {
     .toast-container {
-      top: var(--space-3);
+      top: calc(var(--safe-top, 0px) + var(--space-3));
       left: var(--space-3);
       right: var(--space-3);
       max-width: none;

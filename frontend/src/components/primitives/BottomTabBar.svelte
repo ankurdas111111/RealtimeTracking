@@ -31,6 +31,7 @@
   <button
     class="tab-item"
     class:active={activeTab === 'track'}
+    class:tracking-active={isTracking}
     on:click={() => selectTab('track')}
     on:keydown={(e) => onTabKeydown(e, 'track')}
     role="tab"
@@ -38,7 +39,12 @@
     tabindex={activeTab === 'track' ? 0 : -1}
     aria-label={isTracking ? 'Track, tracking active' : 'Track'}
   >
-    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20s7-5.2 7-11a7 7 0 1 0-14 0c0 5.8 7 11 7 11z"/><circle cx="12" cy="9" r="2.5"/></svg>
+    <div class="tab-icon-wrap">
+      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20s7-5.2 7-11a7 7 0 1 0-14 0c0 5.8 7 11 7 11z"/><circle cx="12" cy="9" r="2.5"/></svg>
+      {#if isTracking}
+        <span class="tracking-dot" aria-hidden="true"></span>
+      {/if}
+    </div>
     <span class="tab-label">Track</span>
   </button>
 
@@ -131,7 +137,8 @@
     color: var(--text-tertiary);
     transition:
       color var(--duration-fast) var(--ease-out),
-      background-color var(--duration-fast) var(--ease-out);
+      background-color var(--duration-fast) var(--ease-out),
+      transform var(--duration-fast) var(--ease-spring);
     position: relative;
     min-height: var(--bottom-tab-height);
     min-width: 48px;
@@ -140,6 +147,8 @@
 
   .tab-item:active {
     background: var(--surface-active);
+    transform: scale(0.93);
+    transition-duration: 80ms;
   }
 
   .tab-item.active {
@@ -164,6 +173,29 @@
     letter-spacing: 0.02em;
   }
 
+  .tab-icon-wrap {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .tracking-dot {
+    position: absolute;
+    top: -2px;
+    right: -2px;
+    width: 7px;
+    height: 7px;
+    background: var(--success-500);
+    border-radius: 50%;
+    border: 1.5px solid var(--surface-2);
+    animation: tracking-pulse 2s ease infinite;
+  }
+
+  .tracking-active {
+    color: var(--success-500);
+  }
+
   .tab-dot {
     position: absolute;
     top: 6px;
@@ -173,6 +205,11 @@
     background: var(--danger-500);
     border-radius: 50%;
     border: 1.5px solid var(--surface-2);
+  }
+
+  @keyframes tracking-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.5); }
+    50%       { box-shadow: 0 0 0 5px rgba(16, 185, 129, 0); }
   }
 
   @media (min-width: 768px) {

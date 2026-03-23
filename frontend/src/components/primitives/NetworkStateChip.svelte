@@ -29,7 +29,7 @@
     border-radius: 999px;
     background: rgba(16, 185, 129, 0.14);
     border: 1px solid rgba(16, 185, 129, 0.3);
-    color: #047857;
+    color: var(--success-700, #047857);
     font-size: 11px;
     font-weight: 600;
     backdrop-filter: blur(8px);
@@ -37,9 +37,21 @@
   }
 
   .network-chip.offline {
-    background: rgba(245, 158, 11, 0.16);
-    border-color: rgba(245, 158, 11, 0.38);
-    color: #b45309;
+    background: rgba(245, 158, 11, 0.14);
+    border-color: rgba(245, 158, 11, 0.32);
+    color: var(--warning-700, #b45309);
+  }
+
+  :global([data-theme="dark"]) .network-chip {
+    background: rgba(16, 185, 129, 0.18);
+    border-color: rgba(52, 211, 153, 0.35);
+    color: var(--success-400, #34d399);
+  }
+
+  :global([data-theme="dark"]) .network-chip.offline {
+    background: rgba(245, 158, 11, 0.18);
+    border-color: rgba(251, 191, 36, 0.35);
+    color: var(--warning-400, #fbbf24);
   }
 
   .dot {

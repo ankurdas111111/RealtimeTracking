@@ -1,6 +1,7 @@
 <script>
   import { createEventDispatcher } from 'svelte';
   import StatusPills from './StatusPills.svelte';
+  import ThemeToggle from '../ThemeToggle.svelte';
 
   export let activeTab = 'track';
   export let trackingActive = false;
@@ -30,15 +31,18 @@
       <h1>{title}</h1>
       <p>{trackingActive ? 'Live location active' : 'Tracking paused'}</p>
     </div>
-    <button class="icon-btn" aria-label="Open profile tab" on:click={() => dispatch('openMe')}>
-      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M20 21a8 8 0 0 0-16 0"></path>
-        <circle cx="12" cy="7" r="4"></circle>
-      </svg>
-      {#if hasNotification}
-        <span class="dot" aria-hidden="true"></span>
-      {/if}
-    </button>
+    <div class="top-actions">
+      <ThemeToggle />
+      <button class="icon-btn" aria-label="Open profile tab" on:click={() => dispatch('openMe')}>
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M20 21a8 8 0 0 0-16 0"></path>
+          <circle cx="12" cy="7" r="4"></circle>
+        </svg>
+        {#if hasNotification}
+          <span class="dot" aria-hidden="true"></span>
+        {/if}
+      </button>
+    </div>
   </div>
   <StatusPills
     {trackingActive}
@@ -58,10 +62,11 @@
     top: 0;
     z-index: calc(var(--z-navbar) + 1);
     padding: calc(var(--safe-top, 0px) + 8px) 12px 8px;
-    background: linear-gradient(to bottom, rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0.72));
-    backdrop-filter: blur(14px);
-    -webkit-backdrop-filter: blur(14px);
-    border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+    background: var(--glass-bg, rgba(255, 255, 255, 0.85));
+    backdrop-filter: var(--glass-blur, blur(20px) saturate(1.8));
+    -webkit-backdrop-filter: var(--glass-blur, blur(20px) saturate(1.8));
+    border-bottom: 1px solid var(--glass-border, rgba(15, 23, 42, 0.08));
+    box-shadow: 0 1px 12px rgba(0, 0, 0, 0.06);
   }
 
   .bar-main {
@@ -85,17 +90,31 @@
     color: var(--text-secondary, #64748b);
   }
 
+  .top-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+  }
+
   .icon-btn {
     width: 44px;
     height: 44px;
     border-radius: 14px;
-    border: 1px solid rgba(15, 23, 42, 0.15);
-    background: rgba(255, 255, 255, 0.8);
-    color: var(--text-primary, #0f172a);
+    border: 1px solid var(--border-default);
+    background: var(--surface-2);
+    color: var(--text-primary);
     display: inline-flex;
     align-items: center;
     justify-content: center;
     position: relative;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: background var(--duration-fast) var(--ease-out);
+  }
+
+  .icon-btn:active {
+    background: var(--surface-active);
   }
 
   .dot {
@@ -106,7 +125,7 @@
     height: 8px;
     border-radius: 50%;
     background: var(--danger-500, #ef4444);
-    border: 2px solid #fff;
+    border: 2px solid var(--surface-2);
   }
 
   @media (min-width: 768px) {

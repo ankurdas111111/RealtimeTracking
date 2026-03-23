@@ -1,5 +1,6 @@
 <script>
   import { createEventDispatcher } from 'svelte';
+  import { haptics } from '../../lib/haptics.js';
 
   export let isTracking = false;
   export let followMode = false;
@@ -11,7 +12,7 @@
   <!-- Secondary: center-on-me -->
   <button
     class="fab fab--secondary"
-    on:click={() => dispatch('centerOnMe')}
+    on:click={() => { haptics.tap(); dispatch('centerOnMe'); }}
     title="Center map on me"
     aria-label="Center map on me"
   >
@@ -25,7 +26,7 @@
   <button
     class="fab fab--secondary"
     class:follow-active={followMode}
-    on:click={() => dispatch('toggleFollow')}
+    on:click={() => { haptics.tap(); dispatch('toggleFollow'); }}
     title={followMode ? 'Stop following me' : 'Follow me automatically'}
     aria-label={followMode ? 'Stop following me' : 'Follow me automatically'}
     aria-pressed={followMode}
@@ -109,7 +110,7 @@
 
   /* Tracking active — red breathing */
   .fab--primary.tracking {
-    background: linear-gradient(135deg, var(--danger-500, #ef4444) 0%, #b91c1c 100%);
+    background: linear-gradient(135deg, var(--danger-500, #ef4444) 0%, var(--danger-700, #b91c1c) 100%);
     box-shadow:
       0 4px 20px rgba(239, 68, 68, 0.55),
       0 0 0 1px rgba(239, 68, 68, 0.25);
@@ -129,23 +130,40 @@
   .fab--secondary {
     width: 44px;
     height: 44px;
-    background: var(--glass-1, rgba(255,255,255,0.85));
-    backdrop-filter: var(--blur-sm, blur(16px));
-    -webkit-backdrop-filter: var(--blur-sm, blur(16px));
+    background: var(--glass-bg, rgba(255,255,255,0.85));
+    backdrop-filter: var(--glass-blur-sm, blur(12px) saturate(1.4));
+    -webkit-backdrop-filter: var(--glass-blur-sm, blur(12px) saturate(1.4));
     color: var(--text-secondary);
-    box-shadow: var(--shadow-glass-sm, 0 2px 12px rgba(0,0,0,0.10)), 0 0 0 1px var(--glass-border, rgba(255,255,255,0.6));
+    box-shadow: var(--map-chip-shadow, 0 2px 12px rgba(0,0,0,0.10)), 0 0 0 1px var(--glass-border, rgba(15,23,42,0.10));
   }
 
   .fab--secondary:hover {
     transform: scale(1.08);
     color: var(--primary-500, #6366f1);
-    background: var(--glass-2, rgba(255,255,255,0.95));
+    background: var(--glass-bg-strong, rgba(255,255,255,0.95));
   }
 
   .fab--secondary.follow-active {
     color: var(--primary-500, #6366f1);
     background: rgba(99, 102, 241, 0.12);
     box-shadow: 0 2px 12px rgba(99,102,241,0.25), 0 0 0 1px rgba(99,102,241,0.30);
+  }
+
+  :global([data-theme="dark"]) .fab--secondary {
+    background: rgba(30, 41, 59, 0.85);
+    box-shadow: 0 2px 12px rgba(0,0,0,0.35), 0 0 0 1px rgba(255,255,255,0.08);
+    color: var(--text-secondary);
+  }
+
+  :global([data-theme="dark"]) .fab--secondary:hover {
+    background: rgba(30, 41, 59, 0.95);
+    color: var(--primary-400, #818cf8);
+  }
+
+  :global([data-theme="dark"]) .fab--secondary.follow-active {
+    background: rgba(99, 102, 241, 0.20);
+    box-shadow: 0 2px 12px rgba(99,102,241,0.30), 0 0 0 1px rgba(99,102,241,0.35);
+    color: var(--primary-400, #818cf8);
   }
 
   @media (prefers-reduced-motion: reduce) {

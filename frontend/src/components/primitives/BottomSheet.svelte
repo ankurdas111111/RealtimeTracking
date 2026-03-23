@@ -14,9 +14,9 @@
   let lastFocusedEl = null;
   let wasOpen = false;
 
-  const SNAP_PEEK = 0.78;
+  const SNAP_PEEK = 0.80;   // 20% of screen visible from bottom
   const SNAP_HALF = 0.50;
-  const SNAP_FULL = 0.10;
+  const SNAP_FULL = 0.08;
 
   $: viewH = typeof window !== 'undefined' ? window.innerHeight : 800;
   $: peekY = viewH * SNAP_PEEK;
@@ -42,12 +42,24 @@
     if (sheetEl) sheetEl.style.transition = 'none';
   }
 
+  function applyRubberBand(offset) {
+    if (offset < fullY) {
+      const overscroll = fullY - offset;
+      return fullY - overscroll * 0.3;
+    }
+    if (offset > viewH) {
+      const overscroll = offset - viewH;
+      return viewH + overscroll * 0.3;
+    }
+    return offset;
+  }
+
   function onPointerMove(e) {
     if (!dragging) return;
     const delta = e.clientY - startY;
-    const newOffset = currentOffset + delta;
-    const clamped = Math.max(fullY, Math.min(viewH, newOffset));
-    if (sheetEl) sheetEl.style.transform = `translateY(${clamped}px)`;
+    const rawOffset = currentOffset + delta;
+    const rubber = applyRubberBand(rawOffset);
+    if (sheetEl) sheetEl.style.transform = `translateY(${rubber}px)`;
   }
 
   function onPointerUp(e) {

@@ -44,11 +44,19 @@
 
   onMount(() => {
     window.addEventListener('keydown', onKeydown);
+    if (open) document.body.style.overflow = 'hidden';
   });
 
   onDestroy(() => {
-    if (typeof window !== 'undefined') window.removeEventListener('keydown', onKeydown);
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('keydown', onKeydown);
+      document.body.style.overflow = '';
+    }
   });
+
+  $: if (typeof document !== 'undefined') {
+    document.body.style.overflow = open ? 'hidden' : '';
+  }
 
   function getFocusable() {
     if (!dialogEl) return [];
@@ -128,7 +136,7 @@
   }
 
   .modal-backdrop.urgent {
-    background: rgba(127, 29, 29, 0.3);
+    background: rgba(185, 28, 28, 0.20);
   }
 
   .modal-card {

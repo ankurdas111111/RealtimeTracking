@@ -35,6 +35,7 @@
   import { connectivityStore, setOnlineStatus, setSocketConnected, setBufferedCount } from '../lib/stores/connectivity.js';
   import { uiShellStore, setMobileTab, setSheetOpen } from '../lib/stores/uiShell.js';
   import { latencyMetrics } from '../lib/stores/latency.js';
+  import { haptics } from '../lib/haptics.js';
 
   let activePanel = null;
   let sidebarTab = 'info';
@@ -152,18 +153,12 @@
     socket.emit('profileUpdate', { batteryPct: null, deviceType: dt, connectionQuality });
   }
 
-  function tapHaptic(style = 'light') {
-    if (typeof navigator === 'undefined' || typeof navigator.vibrate !== 'function') return;
-    if (style === 'medium') navigator.vibrate(22);
-    else navigator.vibrate(12);
-  }
-
   function toggleTrackingAction() {
     if ($tracking) {
-      tapHaptic('medium');
+      haptics.confirm();
       stopTracking();
     } else {
-      tapHaptic('light');
+      haptics.tap();
       startTracking();
     }
   }
@@ -544,7 +539,7 @@
             class="btn"
             class:btn-danger={!$mySosActive}
             class:btn-secondary={$mySosActive}
-            on:click={() => ($mySosActive ? socket.emit('cancelSOS') : (sosConfirmOpen = true))}
+            on:click={() => { if ($mySosActive) { haptics.sosCancelled(); socket.emit('cancelSOS'); } else { haptics.warning(); sosConfirmOpen = true; } }}
           >
             {$mySosActive ? 'Cancel SOS' : 'Trigger SOS'}
           </button>
@@ -609,7 +604,7 @@
           <p class="sos-confirm-desc">This will immediately alert all your contacts that you need help. Your location will be shared with them.</p>
           <div class="sos-confirm-actions">
             <button class="btn btn-ghost sos-cancel-btn" on:click={() => sosConfirmOpen = false}>Cancel</button>
-            <button class="btn btn-danger sos-send-btn" on:click={() => { socket.emit('triggerSOS', { reason: 'SOS' }); sosConfirmOpen = false; }}>Send SOS</button>
+            <button class="btn btn-danger sos-send-btn" on:click={() => { haptics.sos(); socket.emit('triggerSOS', { reason: 'SOS' }); sosConfirmOpen = false; }}>Send SOS</button>
           </div>
         </div>
       </div>
