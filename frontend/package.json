@@ -5,6 +5,13 @@
     "@capacitor/app": "^8.0.1",
     "@capacitor/cli": "^8.1.0",
     "@capacitor/core": "^8.1.0",
-    "@capacitor/geolocation": "^8.1.0"
+    "@capacitor/geolocation": "^8.1.0",
+    "@sveltejs/vite-plugin-svelte": "^5.1.1",
+    "maplibre-gl": "^5.20.1",
+    "socket.io-client": "^4.8.3",
+    "svelte": "^5.51.2",
+    "svelte-spa-router": "^4.0.1",
+    "vite": "^6.4.1",
+    "web-push": "^3.6.7"
   }
 }
