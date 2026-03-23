@@ -6,7 +6,7 @@
   import { createMapIcon, escapeAttr, calculateDistance, formatDistance, circleGeoJSON } from '../lib/tracking.js';
   import { animateMarkerTo, cancelAnimation, cancelAllAnimations } from '../lib/markerInterpolator.js';
   import { getUserColor } from '../lib/getUserColor.js';
-  import { RASTER_STYLE, upgradeToVectorStyle } from '../lib/mapStyle.js';
+  import { RASTER_STYLE } from '../lib/mapStyle.js';
 
   export let followMode = false;
 
@@ -89,8 +89,6 @@
 
     map.on('load', () => {
       addCircleSources();
-      upgradeToVectorStyle(map, addCircleSources);
-
     });
   });
 
