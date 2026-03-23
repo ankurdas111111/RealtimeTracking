@@ -133,13 +133,18 @@ export function setupSocketHandlers() {
   });
 
   socket.on('userConnected', (user) => {
-    if (user.socketId === get(mySocketId)) return;
+    const mySid = get(mySocketId);
+    if (!mySid || user.socketId === mySid) return;
     _localMap.set(user.socketId, user);
     _scheduleUsersFlush();
   });
 
   socket.on('userUpdate', (user) => {
-    if (user.socketId === get(mySocketId)) { extractSafety(user); return; }
+    const mySid = get(mySocketId);
+    if (!mySid || user.socketId === mySid) {
+      if (mySid && user.socketId === mySid) extractSafety(user);
+      return;
+    }
     if (user.timestamp) recordLatency(user.timestamp, user.serverTs);
     _localMap.set(user.socketId, user);
     _scheduleUsersFlush();
