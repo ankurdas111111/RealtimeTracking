@@ -1,12 +1,16 @@
 /**
- * Shared map style configuration for MapLibre GL.
+ * Map style configuration for MapLibre GL.
  *
- * Strategy: start with raster tiles for instant rendering, then upgrade
- * to OpenFreeMap vector tiles in the background. Users see the map
- * immediately while vector tiles (sharper, GPU-rendered) load behind
- * the scenes.
+ * Primary: OpenFreeMap vector tiles — completely free, no API key,
+ * sharp GPU-rendered tiles, excellent OSM coverage in India, global CDN.
+ *
+ * Fallback: CARTO raster tiles if vector style fails to load.
  */
 
+// Best free vector tile style — no API key, no rate limits
+export const MAP_STYLE = 'https://tiles.openfreemap.org/styles/liberty';
+
+// Raster fallback if OpenFreeMap is unreachable
 export const RASTER_STYLE = {
   version: 8,
   sources: {
@@ -24,31 +28,3 @@ export const RASTER_STYLE = {
   },
   layers: [{ id: 'osm-tiles', type: 'raster', source: 'osm' }]
 };
-
-// Vector style fallback (optional upgrade from raster)
-// Using a compatible style that works with MapLibre GL
-const VECTOR_STYLE_URL = 'https://demotiles.maplibre.org/style.json';
-
-/**
- * Upgrade a map from raster to vector tiles in the background.
- * Calls `onStyleReady` after the new style has finished loading
- * so the caller can re-add custom GeoJSON sources/layers.
- *
- * If the fetch or style load fails, the map keeps its raster tiles.
- */
-export function upgradeToVectorStyle(map, onStyleReady) {
-  fetch(VECTOR_STYLE_URL)
-    .then(r => {
-      if (!r.ok) throw new Error(r.status);
-      return r.json();
-    })
-    .then(style => {
-      if (onStyleReady) {
-        map.once('style.load', onStyleReady);
-      }
-      map.setStyle(style);
-    })
-    .catch(() => {
-      // Vector tiles unavailable — raster stays, no degradation.
-    });
-}

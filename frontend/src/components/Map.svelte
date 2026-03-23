@@ -6,7 +6,7 @@
   import { createMapIcon, escapeAttr, calculateDistance, formatDistance, circleGeoJSON } from '../lib/tracking.js';
   import { animateMarkerTo, cancelAnimation, cancelAllAnimations } from '../lib/markerInterpolator.js';
   import { getUserColor } from '../lib/getUserColor.js';
-  import { RASTER_STYLE } from '../lib/mapStyle.js';
+  import { MAP_STYLE, RASTER_STYLE } from '../lib/mapStyle.js';
 
   export let followMode = false;
 
@@ -65,31 +65,34 @@
     window.addEventListener('resize', checkMobile);
 
     // Configure MapLibre GL worker (required for proper rendering)
-    // Point to the worker file in public directory
     maplibregl.workerUrl = '/maplibre-gl-csp-worker.js';
     maplibregl.workerCount = 2;
-
-    map = new maplibregl.Map({
-      container: mapContainer,
-      style: RASTER_STYLE,
-      center: [0, 20],
-      zoom: 3,
-      attributionControl: true
-    });
-
-    map.addControl(new maplibregl.NavigationControl({ showCompass: false }),
-      isMobile ? 'bottom-right' : 'top-right');
-
-    map.on('dragstart', () => { followMode = false; });
 
     function addCircleSources() {
       ensureCircleSource('my-geofence');
       ensureCircleLayer('my-geofence-fill', 'my-geofence', '#8b5cf6', 0.10, '#8b5cf6', 2.5, [8, 5]);
     }
 
-    map.on('load', () => {
-      addCircleSources();
-    });
+    function initMap(style) {
+      map = new maplibregl.Map({
+        container: mapContainer,
+        style,
+        center: [78.9629, 20.5937], // Center of India
+        zoom: 4,
+        attributionControl: true
+      });
+
+      map.addControl(new maplibregl.NavigationControl({ showCompass: false }),
+        isMobile ? 'bottom-right' : 'top-right');
+
+      map.on('dragstart', () => { followMode = false; });
+      map.on('load', addCircleSources);
+    }
+
+    // Try OpenFreeMap vector tiles first, fall back to CARTO raster on error
+    fetch(MAP_STYLE, { method: 'HEAD' })
+      .then(r => { if (!r.ok) throw new Error(); initMap(MAP_STYLE); })
+      .catch(() => initMap(RASTER_STYLE));
   });
 
   onDestroy(() => {
