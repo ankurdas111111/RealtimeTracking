@@ -63,8 +63,13 @@ export function setupSocketHandlers() {
     return;
   }
   handlersRegistered = true;
+  // Only show reconnecting banner if disconnected for more than 4 seconds.
+  // Brief drops (network hiccups, Render cold starts) should be invisible.
+  let _reconnectBannerTimer = null;
+
   socket.on('connect', () => {
     connected = true;
+    if (_reconnectBannerTimer) { clearTimeout(_reconnectBannerTimer); _reconnectBannerTimer = null; }
     setBanner({ type: null, text: null, actions: [] });
   });
 
@@ -75,42 +80,43 @@ export function setupSocketHandlers() {
 
   socket.on('disconnect', (reason) => {
     connected = false;
+    // Only show banner after 4s — quick reconnects should be invisible
+    _reconnectBannerTimer = setTimeout(() => {
+      _reconnectBannerTimer = null;
+      if (!connected) setBanner({ type: 'info', text: 'Reconnecting...', actions: [] });
+    }, 4000);
+    // Auth errors need immediate feedback
     if (reason === 'io server disconnect') {
-      setBanner({ type: 'info', text: 'Disconnected by server. Reconnecting...', actions: [] });
-    } else {
-      setBanner({ type: 'info', text: 'Connection lost. Reconnecting...', actions: [] });
+      clearTimeout(_reconnectBannerTimer);
+      _reconnectBannerTimer = null;
     }
   });
 
   socket.on('connect_error', (err) => {
-    const msg = err && err.message ? err.message : 'Connection error';
+    const msg = err && err.message ? err.message : '';
     if (msg.includes('Authentication') || msg.includes('session') || msg.includes('401') || msg.includes('403')) {
+      if (_reconnectBannerTimer) { clearTimeout(_reconnectBannerTimer); _reconnectBannerTimer = null; }
       setBanner({ type: 'sos', text: 'Session expired. Redirecting to login...', actions: [] });
       setTimeout(() => { window.location.hash = '#/login'; }, 2000);
-      return;
     }
-    setBanner({ type: 'info', text: 'Connection error: ' + msg + '. Retrying...', actions: [] });
+    // Other errors: silently retry, banner already scheduled from disconnect
   });
 
-  socket.io.on('reconnect', (attempt) => {
-    setBanner({ type: 'info', text: 'Reconnected! (attempt ' + attempt + ')', actions: [] }, 2000);
-    // Drain offline buffer after a short delay so the server has processed the
-    // handshake and registered the user in activeUsers before receiving the batch.
+  socket.io.on('reconnect', () => {
+    // Drain offline buffer after a short delay
     if (hasBuffered()) {
       setTimeout(() => {
         const batch = drainBuffer();
-        if (batch.length > 0 && socket.connected) {
-          socket.emit('positionBatch', batch);
-        }
+        if (batch.length > 0 && socket.connected) socket.emit('positionBatch', batch);
       }, 500);
     }
   });
 
-  socket.io.on('reconnect_attempt', (attempt) => {
-    setBanner({ type: 'info', text: 'Reconnecting... attempt ' + attempt, actions: [] });
-  });
+  // No per-attempt banner — too noisy
+  socket.io.on('reconnect_attempt', () => {});
 
   socket.io.on('reconnect_failed', () => {
+    if (_reconnectBannerTimer) { clearTimeout(_reconnectBannerTimer); _reconnectBannerTimer = null; }
     setBanner({ type: 'sos', text: 'Unable to reconnect. Please refresh the page.', actions: [
       { label: 'Refresh', kind: 'btn-primary', onClick: () => window.location.reload() }
     ] });
