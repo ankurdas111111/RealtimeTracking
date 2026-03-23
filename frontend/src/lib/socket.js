@@ -1,5 +1,3 @@
-import { io } from 'socket.io-client';
-import * as msgpackParser from 'socket.io-msgpack-parser';
 import { get } from 'svelte/store';
 import { otherUsers, mySocketId, myLocation, mySafetyStatus } from './stores/map.js';
 import { myRooms, myShareCode, myContactInfo } from './stores/rooms.js';
@@ -7,21 +5,18 @@ import { myContacts } from './stores/contacts.js';
 import { myGuardianData, canManage, pendingIncomingRequests } from './stores/guardians.js';
 import { banner, alertState, myLiveLinks, mySosActive } from './stores/sos.js';
 import { adminOverview } from './stores/admin.js';
+import { privacyPause } from './stores/places.js';
 import { authUser } from './stores/auth.js';
 import { drainBuffer, hasBuffered } from './offlineBuffer.js';
 import { recordLatency } from './stores/latency.js';
-import API_BASE from './env.js';
+import { createRealtimeSocket } from './realtimeClient.js';
 
 const storedClientId = localStorage.getItem('clientId');
 const clientId = storedClientId || (crypto && crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + '-' + Math.random().toString(16).slice(2));
 if (!storedClientId) localStorage.setItem('clientId', clientId);
 
-const socketBase = API_BASE || undefined;
-
-export const socket = io(socketBase, {
+export const socket = createRealtimeSocket({
   auth: { clientId },
-  transports: ["websocket"],
-  parser: msgpackParser,
   autoConnect: false,
   reconnection: true,
   reconnectionAttempts: 50,
@@ -376,6 +371,26 @@ export function setupSocketHandlers() {
 
   // Admin overview
   socket.on('adminOverview', (data) => { if (data) adminOverview.set(data); });
+
+  // Place alerts
+  socket.on('placeAlert', (data) => {
+    if (!data) return;
+    const action = data.type === 'arrive' ? 'arrived at' : 'left';
+    setBanner({ type: 'info', text: `${data.targetName || 'Someone'} ${action} ${data.placeName || 'a place'}`, actions: [] }, 5000);
+  });
+
+  // Speed alerts
+  socket.on('speedAlert', (data) => {
+    if (!data) return;
+    setBanner({ type: 'sos', text: `${data.targetName || 'Someone'} is going ${Math.round(data.speed)} km/h (limit: ${Math.round(data.threshold)})`, actions: [
+      { label: 'Dismiss', kind: 'btn-secondary', onClick: () => setBanner({ type: null, text: null, actions: [] }) }
+    ] }, 8000);
+  });
+
+  // Privacy pause
+  socket.on('privacyPauseUpdate', (data) => {
+    if (data) privacyPause.set(data.pausedUntil || null);
+  });
 
   // Network online/offline detection for immediate UX feedback
   if (typeof window !== 'undefined') {

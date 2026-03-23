@@ -1,27 +1,27 @@
 /**
- * Smooth Leaflet marker interpolation using requestAnimationFrame.
+ * Smooth MapLibre marker interpolation using requestAnimationFrame.
  *
  * Each marker gets an animation state keyed by a unique ID.
  * When a new target arrives mid-animation, the current interpolated
  * position becomes the new start point — no snapping.
+ *
+ * Coordinates use MapLibre convention: [lng, lat].
  */
 
 const animations = new Map();
-const _lastCallAt = new Map(); // tracks last call time per marker for adaptive duration
+const _lastCallAt = new Map();
 
 /**
- * Smoothly animate a Leaflet marker from its current position to a new one.
+ * Smoothly animate a MapLibre marker from its current position to a new one.
  *
- * @param {string}        id          Unique key for this marker (e.g. socketId).
- * @param {L.Marker}      marker      The Leaflet marker to move.
- * @param {[number,number]} target    [lat, lng] destination.
- * @param {number}        [duration]  Animation duration in ms. If omitted, computed
- *                                    from the interval since the previous call for this
- *                                    marker (capped 100–600 ms). Explicit 0 = instant.
+ * @param {string}            id       Unique key for this marker (e.g. socketId).
+ * @param {maplibregl.Marker} marker   The MapLibre marker to move.
+ * @param {[number,number]}   target   [lng, lat] destination.
+ * @param {number}           [duration] Animation duration in ms.
  */
 export function animateMarkerTo(id, marker, target, duration) {
   if (typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-    marker.setLatLng(target);
+    marker.setLngLat(target);
     animations.delete(id);
     _lastCallAt.delete(id);
     return;
@@ -36,16 +36,15 @@ export function animateMarkerTo(id, marker, target, duration) {
   const prev = animations.get(id);
   if (prev) cancelAnimationFrame(prev.raf);
 
-  const startLatLng = marker.getLatLng();
-  const startLat = startLatLng.lat;
-  const startLng = startLatLng.lng;
-  const [endLat, endLng] = target;
+  const startLL = marker.getLngLat();
+  const startLng = startLL.lng;
+  const startLat = startLL.lat;
+  const [endLng, endLat] = target;
 
-  // Skip animation for tiny moves (< ~0.5 m) — just set directly
-  const dLat = endLat - startLat;
   const dLng = endLng - startLng;
+  const dLat = endLat - startLat;
   if (Math.abs(dLat) < 0.000005 && Math.abs(dLng) < 0.000005) {
-    marker.setLatLng(target);
+    marker.setLngLat(target);
     animations.delete(id);
     return;
   }
@@ -55,12 +54,11 @@ export function animateMarkerTo(id, marker, target, duration) {
   function step(now) {
     const elapsed = now - startTime;
     const t = Math.min(elapsed / duration, 1);
-    // Ease-out cubic for natural deceleration
     const ease = 1 - Math.pow(1 - t, 3);
 
-    const lat = startLat + dLat * ease;
     const lng = startLng + dLng * ease;
-    marker.setLatLng([lat, lng]);
+    const lat = startLat + dLat * ease;
+    marker.setLngLat([lng, lat]);
 
     if (t < 1) {
       const state = animations.get(id);
@@ -73,10 +71,6 @@ export function animateMarkerTo(id, marker, target, duration) {
   animations.set(id, { raf: requestAnimationFrame(step) });
 }
 
-/**
- * Cancel any running animation for a marker.
- * @param {string} id
- */
 export function cancelAnimation(id) {
   const state = animations.get(id);
   if (state) {
@@ -86,9 +80,6 @@ export function cancelAnimation(id) {
   _lastCallAt.delete(id);
 }
 
-/**
- * Cancel all running animations (e.g. on component destroy).
- */
 export function cancelAllAnimations() {
   for (const state of animations.values()) {
     cancelAnimationFrame(state.raf);

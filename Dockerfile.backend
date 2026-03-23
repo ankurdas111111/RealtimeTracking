@@ -1,0 +1,52 @@
+# Stage 1: Build Svelte frontend
+FROM node:20-alpine AS frontend-builder
+
+WORKDIR /app
+
+# Copy package files and install deps (only what vite needs)
+COPY package.json package-lock.json ./
+COPY frontend/ ./frontend/
+RUN npm ci --include=dev && npm run build:frontend
+
+# Stage 2: Build Go backend
+FROM golang:1.25-alpine AS backend-builder
+
+RUN apk add --no-cache git
+
+WORKDIR /build
+
+COPY backend/go.mod backend/go.sum ./
+RUN go mod download
+
+COPY backend/ .
+RUN CGO_ENABLED=0 GOOS=linux go build -o kinnect-server .
+
+# Stage 3: Minimal runtime image
+FROM alpine:latest
+
+RUN apk --no-cache add ca-certificates curl
+
+WORKDIR /app
+
+# Copy Go binary
+COPY --from=backend-builder /build/kinnect-server .
+
+# Copy built frontend assets
+COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
+
+# Create non-root user
+RUN addgroup -g 1000 kinnect && \
+    adduser -D -u 1000 -G kinnect kinnect
+
+USER kinnect
+
+# Tell the Go server where the frontend is
+ENV FRONTEND_DIR=/app/frontend/dist
+
+EXPOSE 3000
+
+# Health check against the main app port (Render injects PORT)
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+    CMD curl -f http://localhost:${PORT:-3000}/api/health || exit 1
+
+CMD ["./kinnect-server"]

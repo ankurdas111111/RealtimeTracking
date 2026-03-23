@@ -42,8 +42,14 @@
     <button class="btn btn-icon btn-ghost nav-toggle" class:active={activePanel === 'info'} on:click={() => toggle('info')} title="Info" aria-label="Toggle info panel" aria-pressed={activePanel === 'info'}>
       <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
     </button>
-    <button class="btn btn-icon btn-ghost nav-toggle" class:active={activePanel === 'admin'} on:click={() => toggle('admin')} title="Admin Controls" aria-label="Toggle admin panel" aria-pressed={activePanel === 'admin'}>
+    <button class="btn btn-icon btn-ghost nav-toggle" class:active={activePanel === 'admin'} on:click={() => toggle('admin')} title="Safety" aria-label="Toggle safety panel" aria-pressed={activePanel === 'admin'}>
       <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+    </button>
+    <button class="btn btn-icon btn-ghost nav-toggle" class:active={activePanel === 'places'} on:click={() => toggle('places')} title="Places" aria-label="Toggle places panel" aria-pressed={activePanel === 'places'}>
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+    </button>
+    <button class="btn btn-icon btn-ghost nav-toggle" class:active={activePanel === 'settings'} on:click={() => toggle('settings')} title="Settings" aria-label="Toggle settings panel" aria-pressed={activePanel === 'settings'}>
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
     </button>
     {#if isAdmin}
       <button class="btn btn-icon btn-ghost nav-toggle" class:active={activePanel === 'superAdmin'} on:click={() => toggle('superAdmin')} title="Super Admin" aria-label="Toggle super admin panel" aria-pressed={activePanel === 'superAdmin'}>
@@ -70,7 +76,6 @@
     height: var(--navbar-height);
     display: flex;
     align-items: center;
-    justify-content: space-between;
     padding: 0 var(--space-4);
     background: var(--surface-2);
     backdrop-filter: blur(16px);
@@ -80,6 +85,7 @@
     z-index: var(--z-navbar);
     position: relative;
     flex-shrink: 0;
+    gap: var(--space-2);
   }
 
   .navbar-left {
@@ -112,6 +118,31 @@
     display: flex;
     align-items: center;
     gap: var(--space-1);
+    flex: 1;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    min-width: 0;
+    padding-right: var(--space-2);
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-default) transparent;
+  }
+
+  .navbar-right::-webkit-scrollbar {
+    height: 4px;
+  }
+
+  .navbar-right::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .navbar-right::-webkit-scrollbar-thumb {
+    background: var(--border-default);
+    border-radius: 2px;
+  }
+
+  .navbar-right::-webkit-scrollbar-thumb:hover {
+    background: var(--text-secondary);
   }
 
   .nav-toggle {

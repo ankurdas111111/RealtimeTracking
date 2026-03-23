@@ -1,241 +1,186 @@
 <script>
   import { onMount, onDestroy } from 'svelte';
-  import L from 'leaflet';
-  import 'leaflet/dist/leaflet.css';
+  import maplibregl from 'maplibre-gl';
+  import 'maplibre-gl/dist/maplibre-gl.css';
   import { otherUsers, myLocation, mySocketId, mySafetyStatus, focusUser } from '../lib/stores/map.js';
-  import { createMapIcon, escapeAttr, calculateDistance, formatDistance } from '../lib/tracking.js';
+  import { createMapIcon, escapeAttr, calculateDistance, formatDistance, circleGeoJSON } from '../lib/tracking.js';
   import { animateMarkerTo, cancelAnimation, cancelAllAnimations } from '../lib/markerInterpolator.js';
   import { getUserColor } from '../lib/getUserColor.js';
+  import { RASTER_STYLE, upgradeToVectorStyle } from '../lib/mapStyle.js';
 
   export let followMode = false;
 
   let mapContainer;
   let map;
-  let markers = new Map();
-  let markerState = new Map(); // tracks visual state per marker to avoid redundant setIcon
-  let geofenceCircles = new Map();
+  let markers = new Map();       // sid → maplibregl.Marker
+  let markerPopups = new Map();   // sid → maplibregl.Popup
+  let markerState = new Map();
+  let geofenceIds = new Set();
   let myMarker = null;
+  let myPopup = null;
   let hasSetView = false;
   let isMobile = false;
   let renderUsersRaf = null;
   let pendingUsers = new Map();
-  let accuracyCircle = null;
-  let myGeofenceCircle = null;
-  // Fix M: popup HTML cache — avoid rebuilding unchanged popup content on every render
-  const popupCache = new Map(); // sid → { hash, html }
-  // Fix K: track last-rendered user references for diff-based rendering
-  const _lastRenderedUsers = new Map(); // sid → user object reference
-  let tileLayer = null;
-  let tileProviderIdx = 0;
-  let tileErrorCount = 0;
-  const tileProviders = [
-    { url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', options: { maxZoom: 19, attribution: '&copy; OpenStreetMap contributors' } },
-    { url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', options: { maxZoom: 19, attribution: '&copy; OpenStreetMap contributors &copy; CARTO' } }
-  ];
+  const popupCache = new Map();
+  const _lastRenderedUsers = new Map();
 
   function checkMobile() {
     isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
   }
 
-  function mountTileProvider(index) {
-    if (!map) return;
-    if (tileLayer) {
-      map.removeLayer(tileLayer);
-      tileLayer = null;
+  function ensureCircleSource(id) {
+    if (!map.getSource(id)) {
+      map.addSource(id, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
     }
-    tileProviderIdx = index;
-    tileErrorCount = 0;
-    const provider = tileProviders[index];
-    tileLayer = L.tileLayer(provider.url, { ...provider.options, crossOrigin: true });
-    tileLayer.on('tileerror', () => {
-      tileErrorCount += 1;
-      if (tileErrorCount >= 3 && tileProviderIdx < tileProviders.length - 1) {
-        mountTileProvider(tileProviderIdx + 1);
-      }
-    });
-    tileLayer.addTo(map);
+  }
+
+  function ensureCircleLayer(id, sourceId, color, opacity, outline, outlineWidth, dasharray) {
+    if (!map.getLayer(id)) {
+      map.addLayer({
+        id, type: 'fill', source: sourceId,
+        paint: { 'fill-color': color, 'fill-opacity': opacity }
+      });
+    }
+    const outlineId = id + '-outline';
+    if (outline && !map.getLayer(outlineId)) {
+      const paint = { 'line-color': outline, 'line-width': outlineWidth || 1, 'line-opacity': 0.7 };
+      if (dasharray) paint['line-dasharray'] = dasharray;
+      map.addLayer({ id: outlineId, type: 'line', source: sourceId, paint });
+    }
+  }
+
+  function updateCircleSource(sourceId, center, radiusM) {
+    const src = map.getSource(sourceId);
+    if (!src) return;
+    if (radiusM > 0) {
+      src.setData(circleGeoJSON(center, radiusM));
+    } else {
+      src.setData({ type: 'FeatureCollection', features: [] });
+    }
   }
 
   onMount(() => {
     checkMobile();
     window.addEventListener('resize', checkMobile);
 
-    map = L.map(mapContainer, {
-      center: [20, 0],
+    map = new maplibregl.Map({
+      container: mapContainer,
+      style: RASTER_STYLE,
+      center: [0, 20],
       zoom: 3,
-      zoomControl: false,
-      attributionControl: false,
-      preferCanvas: true
+      attributionControl: true
     });
 
-    L.control.zoom({ position: isMobile ? 'bottomright' : 'topright' }).addTo(map);
-    L.control.attribution({ position: 'bottomleft' }).addTo(map);
+    map.addControl(new maplibregl.NavigationControl({ showCompass: false }),
+      isMobile ? 'bottom-right' : 'top-right');
 
-    mountTileProvider(0);
+    map.on('dragstart', () => { followMode = false; });
 
-    setTimeout(() => map.invalidateSize(), 200);
+    function addCircleSources() {
+      ensureCircleSource('my-geofence');
+      ensureCircleLayer('my-geofence-fill', 'my-geofence', '#8b5cf6', 0.10, '#8b5cf6', 2.5, [8, 5]);
+    }
 
-    // Auto-disable follow mode when user manually pans/zooms
-    map.on('dragstart', () => {
-      followMode = false;
+    map.on('load', () => {
+      addCircleSources();
+      upgradeToVectorStyle(map, addCircleSources);
+
     });
-
-    const observer = new ResizeObserver(() => {
-      if (map) map.invalidateSize();
-    });
-    observer.observe(mapContainer);
-
-    return () => {
-      observer.disconnect();
-      window.removeEventListener('resize', checkMobile);
-    };
   });
 
   onDestroy(() => {
     cancelAllAnimations();
     if (renderUsersRaf) cancelAnimationFrame(renderUsersRaf);
-    for (const c of geofenceCircles.values()) { if (map) map.removeLayer(c); }
-    geofenceCircles.clear();
-    if (myGeofenceCircle && map) map.removeLayer(myGeofenceCircle);
+    for (const m of markers.values()) m.remove();
+    markers.clear();
+    for (const p of markerPopups.values()) p.remove();
+    markerPopups.clear();
+    if (myMarker) myMarker.remove();
+    if (myPopup) myPopup.remove();
     if (map) map.remove();
+    if (typeof window !== 'undefined') window.removeEventListener('resize', checkMobile);
   });
 
   $: if (map && $myLocation) {
     const { latitude, longitude, speed, formattedTime, accuracy } = $myLocation;
-    const pos = [latitude, longitude];
+    const lngLat = [longitude, latitude];
     const selfBadges = [];
     if ($mySafetyStatus?.geofence?.enabled) selfBadges.push('<span style="color:#8b5cf6">⬡ Geofence</span>');
     if ($mySafetyStatus?.autoSos?.enabled) selfBadges.push('<span style="color:#f59e0b">⏱ Auto-SOS</span>');
     if ($mySafetyStatus?.checkIn?.enabled) selfBadges.push('<span style="color:#06b6d4">✓ Check-in</span>');
-    const selfPopup = '<strong>You</strong>' + (selfBadges.length ? '<br/><div style="margin-top:4px;font-size:11px;line-height:1.4">' + selfBadges.join(' &middot; ') + '</div>' : '');
+    const selfPopupHtml = '<strong>You</strong>' + (selfBadges.length ? '<br/><div style="margin-top:4px;font-size:11px;line-height:1.4">' + selfBadges.join(' &middot; ') + '</div>' : '');
 
     if (!myMarker) {
-      const icon = createMapIcon('var(--primary-500)', 'ME', { pulse: true, markerType: 'self' });
-      myMarker = L.marker(pos, { icon, zIndexOffset: 1000 }).addTo(map);
-      myMarker.bindPopup(selfPopup);
+      const el = createMapIcon('var(--primary-500)', '', { markerType: 'self' });
+      myPopup = new maplibregl.Popup({ offset: [0, -44], maxWidth: '280px', closeButton: false })
+        .setHTML(selfPopupHtml);
+      myMarker = new maplibregl.Marker({ element: el, anchor: 'bottom' })
+        .setLngLat(lngLat)
+        .setPopup(myPopup)
+        .addTo(map);
     } else {
-      animateMarkerTo('__self__', myMarker, pos);
-      myMarker.setPopupContent(selfPopup);
+      animateMarkerTo('__self__', myMarker, lngLat);
+      myPopup.setHTML(selfPopupHtml);
     }
-    // Accuracy circle around own position
-    if (accuracy != null && accuracy > 0) {
-      if (!accuracyCircle) {
-        accuracyCircle = L.circle(pos, {
-          radius: accuracy,
-          color: 'var(--primary-500)',
-          weight: 1,
-          opacity: 0.3,
-          fillColor: 'var(--primary-500)',
-          fillOpacity: 0.08,
-          interactive: false
-        }).addTo(map);
-      } else {
-        accuracyCircle.setLatLng(pos);
-        accuracyCircle.setRadius(accuracy);
-      }
-    }
+
     if (followMode) {
-      map.setView(pos, Math.max(map.getZoom(), 15), { animate: true, duration: 0.6 });
+      map.easeTo({ center: lngLat, zoom: Math.max(map.getZoom(), 15), duration: 600 });
     } else if (!hasSetView) {
-      map.setView(pos, 15);
+      map.jumpTo({ center: lngLat, zoom: 15 });
     }
     hasSetView = true;
   }
 
-  // Geofence circle for self
-  $: if (map) {
+  $: if (map && map.loaded()) {
     const gf = $mySafetyStatus?.geofence;
     if (gf?.enabled && gf.centerLat != null && gf.centerLng != null && gf.radiusM > 0) {
-      const gfPos = [gf.centerLat, gf.centerLng];
-      if (myGeofenceCircle) {
-        myGeofenceCircle.setLatLng(gfPos);
-        myGeofenceCircle.setRadius(gf.radiusM);
-      } else {
-        myGeofenceCircle = L.circle(gfPos, {
-          radius: gf.radiusM,
-          color: '#8b5cf6',
-          weight: 2.5,
-          opacity: 0.7,
-          fillColor: '#8b5cf6',
-          fillOpacity: 0.10,
-          dashArray: '8 5',
-          interactive: false,
-          className: 'geofence-circle'
-        }).addTo(map);
-      }
-    } else if (myGeofenceCircle) {
-      map.removeLayer(myGeofenceCircle);
-      myGeofenceCircle = null;
+      updateCircleSource('my-geofence', [gf.centerLng, gf.centerLat], gf.radiusM);
+    } else {
+      updateCircleSource('my-geofence', [0, 0], 0);
     }
   }
 
   function buildPopup(user) {
     const name = escapeAttr(user.displayName || 'User');
     const s = (v) => escapeAttr(String(v ?? ''));
-
     const onlineColor = user.online === false ? '#9ca3af' : '#22c55e';
     const onlineLabel = user.online === false ? 'Offline' : 'Online';
 
     let html = `<div style="min-width:180px;font-size:12px;line-height:1.5">`;
-
-    // Header: name + online badge
     html += `<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">`;
     html += `<strong style="font-size:14px">${name}</strong>`;
     html += `<span style="display:inline-flex;align-items:center;gap:3px;font-size:10px;color:${onlineColor};font-weight:600">`;
-    html += `<span style="width:7px;height:7px;border-radius:50%;background:${onlineColor};display:inline-block"></span>${onlineLabel}</span>`;
-    html += `</div>`;
+    html += `<span style="width:7px;height:7px;border-radius:50%;background:${onlineColor};display:inline-block"></span>${onlineLabel}</span></div>`;
 
-    // Details grid
     html += `<div style="display:grid;grid-template-columns:auto 1fr;gap:2px 10px;font-size:11px;color:#555">`;
-
-    // Speed
     html += `<span style="font-weight:600;color:#374151">Speed</span><span>${user.speed || '0'} km/h</span>`;
 
-    // Distance from me
     const myLoc = $myLocation;
     if (myLoc && user.latitude != null && user.longitude != null) {
       const dist = calculateDistance(myLoc.latitude, myLoc.longitude, user.latitude, user.longitude);
       const formatted = formatDistance(dist);
       if (formatted) html += `<span style="font-weight:600;color:#374151">Distance</span><span>${formatted}</span>`;
     }
-
-    // Accuracy
     if (user.accuracy != null) {
       const accColor = user.accuracy <= 15 ? '#22c55e' : user.accuracy <= 50 ? '#eab308' : '#ef4444';
       html += `<span style="font-weight:600;color:#374151">Accuracy</span><span style="color:${accColor}">~${Math.round(user.accuracy)}m</span>`;
     }
-
-    // Last update
-    if (user.formattedTime) {
-      html += `<span style="font-weight:600;color:#374151">Updated</span><span>${s(user.formattedTime)}</span>`;
-    }
-
-    // Battery
+    if (user.formattedTime) html += `<span style="font-weight:600;color:#374151">Updated</span><span>${s(user.formattedTime)}</span>`;
     if (user.batteryPct != null) {
       const batColor = user.batteryPct > 50 ? '#22c55e' : user.batteryPct > 20 ? '#eab308' : '#ef4444';
-      const batIcon = user.batteryPct > 75 ? '🔋' : user.batteryPct > 20 ? '🪫' : '🪫';
-      html += `<span style="font-weight:600;color:#374151">Battery</span><span>${batIcon} <span style="color:${batColor};font-weight:600">${user.batteryPct}%</span></span>`;
+      html += `<span style="font-weight:600;color:#374151">Battery</span><span>${user.batteryPct > 75 ? '🔋' : '🪫'} <span style="color:${batColor};font-weight:600">${user.batteryPct}%</span></span>`;
     }
-
-    // Device
-    if (user.deviceType) {
-      html += `<span style="font-weight:600;color:#374151">Device</span><span>${s(user.deviceType)}</span>`;
-    }
-
-    // Connection quality
+    if (user.deviceType) html += `<span style="font-weight:600;color:#374151">Device</span><span>${s(user.deviceType)}</span>`;
     if (user.connectionQuality && user.connectionQuality !== 'Unknown') {
       const cqColor = user.connectionQuality === 'Good' ? '#22c55e' : user.connectionQuality === 'OK' ? '#eab308' : '#ef4444';
       html += `<span style="font-weight:600;color:#374151">Signal</span><span style="color:${cqColor}">${s(user.connectionQuality)}</span>`;
     }
-
-    // Coordinates
     if (user.latitude != null && user.longitude != null) {
       html += `<span style="font-weight:600;color:#374151">Position</span><span style="font-family:monospace;font-size:10px">${Number(user.latitude).toFixed(5)}, ${Number(user.longitude).toFixed(5)}</span>`;
     }
-
     html += `</div>`;
 
-    // Safety badges
     const badges = [];
     if (user.sos?.active) {
       const sosReason = user.sos.reason ? ': ' + s(user.sos.reason) : '';
@@ -246,27 +191,17 @@
       const r = user.geofence.radiusM ? (user.geofence.radiusM >= 1000 ? (user.geofence.radiusM / 1000).toFixed(1) + 'km' : user.geofence.radiusM + 'm') : '';
       badges.push(`<div style="background:#f5f3ff;color:#7c3aed;border:1px solid #ddd6fe;border-radius:6px;padding:3px 8px">⬡ Geofence${r ? ' · ' + r : ''}</div>`);
     }
-    if (user.autoSos?.enabled) {
-      badges.push(`<div style="background:#fffbeb;color:#d97706;border:1px solid #fde68a;border-radius:6px;padding:3px 8px">⏱ Auto-SOS · ${user.autoSos.noMoveMinutes || '?'}min</div>`);
-    }
+    if (user.autoSos?.enabled) badges.push(`<div style="background:#fffbeb;color:#d97706;border:1px solid #fde68a;border-radius:6px;padding:3px 8px">⏱ Auto-SOS · ${user.autoSos.noMoveMinutes || '?'}min</div>`);
     if (user.checkIn?.enabled) {
       const lastCI = user.checkIn.lastCheckInAt ? new Date(user.checkIn.lastCheckInAt).toLocaleTimeString() : 'never';
       badges.push(`<div style="background:#ecfeff;color:#0891b2;border:1px solid #a5f3fc;border-radius:6px;padding:3px 8px">✓ Check-in · every ${user.checkIn.intervalMinutes || '?'}min · last: ${lastCI}</div>`);
     }
-    if (badges.length) {
-      html += `<div style="margin-top:6px;display:flex;flex-direction:column;gap:3px;font-size:10px">${badges.join('')}</div>`;
-    }
-
-    // Rooms
-    if (user.rooms && user.rooms.length > 0) {
-      html += `<div style="margin-top:5px;font-size:10px;color:#6b7280"><span style="font-weight:600">Rooms:</span> ${user.rooms.map(r => s(r)).join(', ')}</div>`;
-    }
-
+    if (badges.length) html += `<div style="margin-top:6px;display:flex;flex-direction:column;gap:3px;font-size:10px">${badges.join('')}</div>`;
+    if (user.rooms && user.rooms.length > 0) html += `<div style="margin-top:5px;font-size:10px;color:#6b7280"><span style="font-weight:600">Rooms:</span> ${user.rooms.map(r => s(r)).join(', ')}</div>`;
     html += `</div>`;
     return html;
   }
 
-  // Fix M: cache popup HTML — only rebuild if display-relevant fields changed
   function buildPopupCached(user) {
     const ml = $myLocation;
     const hash = `${user.displayName}|${user.online}|${user.speed}|${user.accuracy}|${user.formattedTime}|${user.batteryPct}|${user.latitude?.toFixed(4)}|${user.longitude?.toFixed(4)}|${user.sos?.active}|${user.geofence?.enabled}|${user.checkIn?.lastCheckInAt}|${ml?.latitude?.toFixed(3)}|${ml?.longitude?.toFixed(3)}`;
@@ -281,95 +216,89 @@
     if (!map) return;
     const currentIds = new Set(current.keys());
 
-    // Remove stale markers, geofence circles, and clear caches
-    for (const [sid, marker] of markers) {
+    for (const [sid, m] of markers) {
       if (!currentIds.has(sid)) {
-        cancelAnimation(sid); // Fix G: cancel RAF loop before removing marker
-        map.removeLayer(marker);
+        cancelAnimation(sid);
+        m.remove();
         markers.delete(sid);
         markerState.delete(sid);
-        popupCache.delete(sid);     // Fix M: clear popup cache for departed user
-        _lastRenderedUsers.delete(sid); // Fix K: clear diff tracking
+        popupCache.delete(sid);
+        _lastRenderedUsers.delete(sid);
+        if (markerPopups.has(sid)) { markerPopups.get(sid).remove(); markerPopups.delete(sid); }
       }
     }
-    for (const [sid, circle] of geofenceCircles) {
+
+    // Clean stale geofence sources
+    for (const sid of geofenceIds) {
       if (!currentIds.has(sid)) {
-        map.removeLayer(circle);
-        geofenceCircles.delete(sid);
+        const srcId = 'gf-' + sid;
+        if (map.getLayer(srcId + '-fill')) map.removeLayer(srcId + '-fill');
+        if (map.getLayer(srcId + '-outline')) map.removeLayer(srcId + '-outline');
+        if (map.getSource(srcId)) map.removeSource(srcId);
+        geofenceIds.delete(sid);
       }
     }
 
     for (const [sid, user] of current) {
       if (user.latitude == null || user.longitude == null) continue;
-
-      // Fix K: skip users whose object reference hasn't changed — they didn't update this batch
       if (_lastRenderedUsers.get(sid) === user && markers.has(sid)) continue;
       _lastRenderedUsers.set(sid, user);
 
-      const pos = [user.latitude, user.longitude];
-      const name = user.displayName || 'User';
-      const firstLetter = name[0]?.toUpperCase() || '?';
+      const lngLat = [user.longitude, user.latitude];
 
       let markerType = 'contact';
       let color = getUserColor(user.userId);
-      if (user.sos?.active) {
-        markerType = 'sos';
-        color = 'var(--danger-500)';
-      } else if (user.online === false) {
-        markerType = 'offline';
-        color = 'var(--gray-400)';
-      }
+      if (user.sos?.active) { markerType = 'sos'; color = 'var(--danger-500)'; }
+      else if (user.online === false) { markerType = 'offline'; color = 'var(--gray-400)'; }
 
-      const iconKey = `${markerType}|${firstLetter}|${!!user.sos?.active}`;
-      const icon = createMapIcon(color, firstLetter, { pulse: !!user.sos?.active, markerType });
-      const popupContent = buildPopupCached(user); // Fix M: use cached popup
-
-      const tooltipText = escapeAttr(name) + (user.sos?.active ? ' [SOS]' : '') + (user.online === false ? ' (offline)' : '');
+      const iconKey = `${markerType}|${color}`;
+      const popupContent = buildPopupCached(user);
 
       if (markers.has(sid)) {
         const m = markers.get(sid);
-        animateMarkerTo(sid, m, pos);
-        // Only replace the icon when the visual actually changes to avoid
-        // disrupting open popups/tooltips on every position update
+        animateMarkerTo(sid, m, lngLat);
         if (markerState.get(sid) !== iconKey) {
-          m.setIcon(icon);
+          const el = createMapIcon(color, '', { pulse: !!user.sos?.active, markerType });
+          const newMarker = new maplibregl.Marker({ element: el, anchor: 'bottom' })
+            .setLngLat(m.getLngLat())
+            .addTo(map);
+          const popup = markerPopups.get(sid);
+          if (popup) { popup.setHTML(popupContent); newMarker.setPopup(popup); }
+          m.remove();
+          markers.set(sid, newMarker);
           markerState.set(sid, iconKey);
+        } else {
+          const popup = markerPopups.get(sid);
+          if (popup) popup.setHTML(popupContent);
         }
-        m.setPopupContent(popupContent);
-        m.setTooltipContent(tooltipText);
       } else {
-        const m = L.marker(pos, { icon }).addTo(map);
-        m.bindPopup(popupContent, { maxWidth: 280, minWidth: 200, className: 'user-popup' });
-        m.bindTooltip(tooltipText, { direction: 'top', offset: [0, -36], className: 'user-tooltip' });
+        const el = createMapIcon(color, '', { pulse: !!user.sos?.active, markerType });
+        const popup = new maplibregl.Popup({ offset: [0, -39], maxWidth: '280px', closeButton: true })
+          .setHTML(popupContent);
+        const m = new maplibregl.Marker({ element: el, anchor: 'bottom' })
+          .setLngLat(lngLat)
+          .setPopup(popup)
+          .addTo(map);
         markers.set(sid, m);
+        markerPopups.set(sid, popup);
         markerState.set(sid, iconKey);
       }
 
-      // Geofence circle for this user
-      const gf = user.geofence;
-      if (gf?.enabled && gf.centerLat != null && gf.centerLng != null && gf.radiusM > 0) {
-        const gfPos = [gf.centerLat, gf.centerLng];
-        if (geofenceCircles.has(sid)) {
-          const c = geofenceCircles.get(sid);
-          c.setLatLng(gfPos);
-          c.setRadius(gf.radiusM);
-        } else {
-          const c = L.circle(gfPos, {
-            radius: gf.radiusM,
-            color: '#8b5cf6',
-            weight: 2,
-            opacity: 0.6,
-            fillColor: '#8b5cf6',
-            fillOpacity: 0.08,
-            dashArray: '6 4',
-            interactive: false,
-            className: 'geofence-circle'
-          }).addTo(map);
-          geofenceCircles.set(sid, c);
+      // Geofence circle per user
+      if (map.loaded()) {
+        const gf = user.geofence;
+        const srcId = 'gf-' + sid;
+        if (gf?.enabled && gf.centerLat != null && gf.centerLng != null && gf.radiusM > 0) {
+          ensureCircleSource(srcId);
+          ensureCircleLayer(srcId + '-fill', srcId, '#8b5cf6', 0.08, '#8b5cf6', 2, [6, 4]);
+          updateCircleSource(srcId, [gf.centerLng, gf.centerLat], gf.radiusM);
+          geofenceIds.add(sid);
+        } else if (geofenceIds.has(sid)) {
+          if (map.getLayer(srcId + '-fill')) map.removeLayer(srcId + '-fill');
+          if (map.getLayer(srcId + '-outline')) map.removeLayer(srcId + '-outline');
+          if (map.getSource(srcId)) map.removeSource(srcId);
+          geofenceIds.delete(sid);
         }
-      } else if (geofenceCircles.has(sid)) {
-        map.removeLayer(geofenceCircles.get(sid));
-        geofenceCircles.delete(sid);
       }
     }
   }
@@ -383,33 +312,30 @@
     });
   }
 
-  // Fly to a focused user and open their popup
   $: if (map && $focusUser) {
     const sid = $focusUser;
-    focusUser.set(null); // consume the event
+    focusUser.set(null);
 
     if (sid === '__self__' && myMarker && $myLocation) {
-      map.flyTo([$myLocation.latitude, $myLocation.longitude], 17, { duration: 0.8 });
-      setTimeout(() => myMarker.openPopup(), 900);
+      map.flyTo({ center: [$myLocation.longitude, $myLocation.latitude], zoom: 17, duration: 800 });
+      setTimeout(() => myMarker.togglePopup(), 900);
     } else if (markers.has(sid)) {
       const m = markers.get(sid);
-      const ll = m.getLatLng();
-      map.flyTo(ll, 17, { duration: 0.8 });
-      setTimeout(() => m.openPopup(), 900);
+      const ll = m.getLngLat();
+      map.flyTo({ center: [ll.lng, ll.lat], zoom: 17, duration: 800 });
+      setTimeout(() => m.togglePopup(), 900);
     } else {
-      // Try finding the user in otherUsers by userId (sid could be a userId)
       for (const [mSid, user] of $otherUsers) {
-        if (user.userId === sid) {
-          if (markers.has(mSid)) {
-            const m = markers.get(mSid);
-            map.flyTo(m.getLatLng(), 17, { duration: 0.8 });
-            setTimeout(() => m.openPopup(), 900);
-          }
+        if (user.userId === sid && markers.has(mSid)) {
+          const m = markers.get(mSid);
+          map.flyTo({ center: m.getLngLat(), zoom: 17, duration: 800 });
+          setTimeout(() => m.togglePopup(), 900);
           break;
         }
       }
     }
   }
+
 </script>
 
 <div class="map-container" bind:this={mapContainer}></div>
@@ -453,104 +379,78 @@
     z-index: 1;
   }
 
-  /* ── Custom marker base ──────────────────────────────────────────────── */
-  :global(.custom-map-icon) {
-    background: none !important;
-    border: none !important;
-  }
-
-  /* ── Popup styling ─────────────────────────────────────────────────────── */
-  :global(.user-popup .leaflet-popup-content-wrapper) {
-    border-radius: 12px;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-    padding: 0;
-  }
-  :global(.user-popup .leaflet-popup-content) {
-    margin: 10px 12px;
-    line-height: 1.5;
-  }
-  :global(.user-popup .leaflet-popup-tip) {
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  }
-
-  /* ── Tooltip styling ─────────────────────────────────────────────────── */
-  :global(.user-tooltip) {
-    background: rgba(17, 24, 39, 0.88);
-    color: white;
-    border: none;
-    border-radius: 6px;
-    padding: 4px 10px;
-    font-size: 12px;
-    font-weight: 600;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-    white-space: nowrap;
-  }
-  :global(.user-tooltip::before) {
-    border-top-color: rgba(17, 24, 39, 0.88) !important;
-  }
-
-  /* ── Badge marker ─────────────────────────────────────────────────────── */
-  :global(.badge-marker) {
-    position: relative;
-    display: flex;
-    align-items: flex-start;
-    justify-content: center;
-    transition: transform 0.15s ease, opacity 0.15s ease;
+  :global(.map-pin) {
     cursor: pointer;
+    filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.28));
+    transition: opacity 0.2s ease, filter 0.2s ease;
+    pointer-events: auto;
+    overflow: visible;
+  }
+  :global(.map-pin:hover) {
+    filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.35));
+  }
+  :global(.map-pin svg) {
+    display: block;
   }
 
-  :global(.badge-marker svg) {
-    pointer-events: none;
-  }
-
-  :global(.badge-marker .badge-text) {
+  :global(.map-pin.pin-self::after) {
+    content: '';
     position: absolute;
-    top: 16%;
+    bottom: 0;
     left: 50%;
-    transform: translateX(-50%);
-    font-size: 12px;
-    font-weight: 800;
-    color: #374151;
-    line-height: 1;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--primary-500, #3b82f6);
+    opacity: 0;
+    transform: translate(-50%, 50%);
+    animation: pin-ripple 2.2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
     pointer-events: none;
-    text-shadow: 0 0.5px 0 rgba(255,255,255,0.6);
-    z-index: 1;
+    z-index: -1;
   }
 
-  :global(.badge-marker.marker-self .badge-text) {
-    font-size: 11px;
-    color: #1d4ed8;
+  :global(.map-pin.pin-sos::after) {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #ef4444;
+    opacity: 0;
+    transform: translate(-50%, 50%);
+    animation: pin-ripple-sos 1.5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+    pointer-events: none;
+    z-index: -1;
   }
-  :global(.badge-marker.marker-sos .badge-text) {
-    color: #dc2626;
-  }
-  :global(.badge-marker.marker-offline) {
+
+  :global(.map-pin.pin-offline) {
     opacity: 0.5;
   }
-  :global(.badge-marker.marker-stored) {
+  :global(.map-pin.pin-stored) {
     opacity: 0.3;
   }
 
-  /* ── Pulse animation ─────────────────────────────────────────────────── */
-  :global(.badge-marker.pulse) {
-    animation: badge-pulse 1.5s ease infinite;
+  @keyframes pin-ripple {
+    0%   { opacity: 0.45; transform: translate(-50%, 50%) scale(1); }
+    100% { opacity: 0;    transform: translate(-50%, 50%) scale(5); }
+  }
+  @keyframes pin-ripple-sos {
+    0%   { opacity: 0.55; transform: translate(-50%, 50%) scale(1); }
+    100% { opacity: 0;    transform: translate(-50%, 50%) scale(6); }
   }
 
-  @keyframes badge-pulse {
-    0% { filter: drop-shadow(0 0 0 rgba(239, 68, 68, 0.5)); transform: scale(1); }
-    50% { filter: drop-shadow(0 0 8px rgba(239, 68, 68, 0.6)); transform: scale(1.08); }
-    100% { filter: drop-shadow(0 0 0 rgba(239, 68, 68, 0.5)); transform: scale(1); }
+  :global(.maplibregl-popup-content) {
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    padding: 10px 12px;
+    line-height: 1.5;
+  }
+  :global(.maplibregl-popup-tip) {
+    border-top-color: white;
   }
 
-  /* ── Geofence circle ─────────────────────────────────────────────────── */
-  /* No animation — stroke-dashoffset animation ran on CPU compositor and
-     accumulated with N users' circles. The dashArray from Leaflet options
-     already provides the visual dashed style. */
-  :global(.geofence-circle) {
-    opacity: 0.7;
-  }
-
-  /* ── Safety overlay ─────────────────────────────────────────────────── */
   .safety-overlay {
     position: absolute;
     top: calc(var(--safe-top, 0px) + 92px);
@@ -578,37 +478,18 @@
     pointer-events: auto;
     animation: chip-in 0.3s ease;
   }
-  .safety-chip.geofence {
-    background: rgba(139, 92, 246, 0.15);
-    border: 1px solid rgba(139, 92, 246, 0.35);
-    color: #7c3aed;
-  }
-  .safety-chip.autosos {
-    background: rgba(245, 158, 11, 0.15);
-    border: 1px solid rgba(245, 158, 11, 0.35);
-    color: #d97706;
-  }
-  .safety-chip.checkin {
-    background: rgba(6, 182, 212, 0.15);
-    border: 1px solid rgba(6, 182, 212, 0.35);
-    color: #0891b2;
-  }
-  .safety-icon {
-    font-size: 13px;
-  }
-  .safety-detail {
-    opacity: 0.7;
-    font-weight: 500;
-    font-size: 10px;
-  }
+  .safety-chip.geofence { background: rgba(139, 92, 246, 0.15); border: 1px solid rgba(139, 92, 246, 0.35); color: #7c3aed; }
+  .safety-chip.autosos { background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.35); color: #d97706; }
+  .safety-chip.checkin { background: rgba(6, 182, 212, 0.15); border: 1px solid rgba(6, 182, 212, 0.35); color: #0891b2; }
+  .safety-icon { font-size: 13px; }
+  .safety-detail { opacity: 0.7; font-weight: 500; font-size: 10px; }
   @keyframes chip-in {
     from { opacity: 0; transform: translateY(-6px); }
     to { opacity: 1; transform: translateY(0); }
   }
 
-  /* ── Responsive map controls ─────────────────────────────────────────── */
   @media (max-width: 767px) {
-    :global(.leaflet-control-zoom) {
+    :global(.maplibregl-ctrl-group) {
       margin-bottom: calc(var(--bottom-tab-height, 56px) + var(--space-4)) !important;
       margin-right: var(--space-3) !important;
     }

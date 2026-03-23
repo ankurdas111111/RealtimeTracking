@@ -17,6 +17,8 @@
   import AdminPanel from '../components/AdminPanel.svelte';
   import SharingPanel from '../components/SharingPanel.svelte';
   import SuperAdminPanel from '../components/SuperAdminPanel.svelte';
+  import SettingsPanel from '../components/SettingsPanel.svelte';
+  import SavedPlacesPanel from '../components/SavedPlacesPanel.svelte';
   import AlertOverlay from '../components/AlertOverlay.svelte';
   import BottomSheet from '../components/primitives/BottomSheet.svelte';
   import BottomTabBar from '../components/primitives/BottomTabBar.svelte';
@@ -28,7 +30,7 @@
   import { GPSKalmanFilter } from '../lib/kalman.js';
   import { recordFix, resetMetrics, trackingMetrics } from '../lib/stores/metrics.js';
   import { bufferPosition, clearBuffer, bufferSize } from '../lib/offlineBuffer.js';
-  import { startGeo, stopGeo, warmUp, checkPermission, isNativePlatform } from '../lib/geoProvider.js';
+  import { startGeo, stopGeo, warmUp, checkPermission, isNativePlatform, startBackgroundGeo, stopBackgroundGeo } from '../lib/geoProvider.js';
   import { connectivityStore, setOnlineStatus, setSocketConnected, setBufferedCount } from '../lib/stores/connectivity.js';
   import { uiShellStore, setMobileTab, setSheetOpen } from '../lib/stores/uiShell.js';
   import { latencyMetrics } from '../lib/stores/latency.js';
@@ -41,6 +43,7 @@
   let mobileTab = 'track';
   let sheetOpen = false;
   let followMode = false;
+  let meSubTab = 'info';
   let showOnboarding = false;
   let lastAcceptedFix = null;
   let lastEmittedFix = null;
@@ -87,7 +90,7 @@
 
   function onNavbarToggle(e) {
     const panel = e.detail;
-    if (['info', 'sharing', 'admin'].includes(panel)) {
+    if (['info', 'sharing', 'admin', 'places', 'settings'].includes(panel)) {
       if (sidebarTab === panel && !sidebarCollapsed) {
         sidebarCollapsed = true;
       } else {
@@ -282,10 +285,15 @@
         }
       }
     );
+
+    if (isNativePlatform()) {
+      startBackgroundGeo((pos, forceEmit) => applyFix(pos, forceEmit));
+    }
   }
 
   function stopTracking() {
     stopGeo();
+    stopBackgroundGeo();
     tracking.set(false);
     lastAcceptedFix = null;
     lastEmittedFix = null;
@@ -436,6 +444,10 @@
         <SharingPanel embedded={true} />
       {:else if sidebarTab === 'admin'}
         <AdminPanel embedded={true} />
+      {:else if sidebarTab === 'places'}
+        <SavedPlacesPanel embedded={true} />
+      {:else if sidebarTab === 'settings'}
+        <SettingsPanel embedded={true} />
       {/if}
     </Sidebar>
   </svelte:fragment>
@@ -475,7 +487,18 @@
           on:toggleFollow={() => (followMode = !followMode)}
         />
       {:else if mobileTab === 'me'}
-        <InfoPanel embedded={true} />
+        <div class="me-subtabs">
+          <button class="subtab" class:active={meSubTab === 'info'} on:click={() => meSubTab = 'info'}>Info</button>
+          <button class="subtab" class:active={meSubTab === 'places'} on:click={() => meSubTab = 'places'}>Places</button>
+          <button class="subtab" class:active={meSubTab === 'settings'} on:click={() => meSubTab = 'settings'}>Settings</button>
+        </div>
+        {#if meSubTab === 'info'}
+          <InfoPanel embedded={true} />
+        {:else if meSubTab === 'places'}
+          <SavedPlacesPanel embedded={true} />
+        {:else if meSubTab === 'settings'}
+          <SettingsPanel embedded={true} />
+        {/if}
       {:else if mobileTab === 'share'}
         <SharingPanel embedded={true} />
       {:else if mobileTab === 'safety'}
@@ -569,6 +592,34 @@
 </AppLayout>
 
 <style>
+  .me-subtabs {
+    display: flex;
+    gap: 4px;
+    padding: 8px 12px;
+    background: var(--surface-secondary, #f3f4f6);
+    border-radius: 8px;
+    margin: 0 0 8px;
+  }
+
+  .subtab {
+    flex: 1;
+    padding: 6px 8px;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary, #666);
+    font-size: 12px;
+    font-weight: 600;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .subtab.active {
+    background: var(--surface-primary, white);
+    color: var(--primary-500, #3b82f6);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  }
+
   .safety-quick-actions {
     display: flex;
     gap: 8px;

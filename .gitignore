@@ -16,5 +16,11 @@ coverage/
 frontend/dist/
 frontend/android/
 frontend/ios/
+docs/
 **/*.md
 *.md
+
+# Go build artifacts
+backend/kinnect-server
+backend/kinnect-v3
+backend/*.exe

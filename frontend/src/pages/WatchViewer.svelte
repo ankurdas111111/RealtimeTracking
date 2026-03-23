@@ -1,30 +1,24 @@
 <script>
   import { onMount, onDestroy } from 'svelte';
-  import L from 'leaflet';
-  import 'leaflet/dist/leaflet.css';
-  import { io } from 'socket.io-client';
-  import * as msgpackParser from 'socket.io-msgpack-parser';
+  import maplibregl from 'maplibre-gl';
+  import 'maplibre-gl/dist/maplibre-gl.css';
+  import { createRealtimeSocket } from '../lib/realtimeClient.js';
   import { createMapIcon, formatCoordinate, escapeAttr } from '../lib/tracking.js';
   import { animateMarkerTo } from '../lib/markerInterpolator.js';
+  import { RASTER_STYLE, upgradeToVectorStyle } from '../lib/mapStyle.js';
 
   export let params = {};
 
   let mapContainer;
   let map;
   let marker = null;
+  let markerPopup = null;
   let socket = null;
   let bannerText = 'Connecting...';
   let bannerSos = false;
   let sosActive = false;
   let hasInit = false;
   let initTimeout = null;
-  let tileLayer = null;
-  let tileProviderIdx = 0;
-  let tileErrorCount = 0;
-  const tileProviders = [
-    { url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', options: { maxZoom: 19, attribution: '&copy; OpenStreetMap contributors' } },
-    { url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', options: { maxZoom: 19, attribution: '&copy; OpenStreetMap contributors &copy; CARTO' } }
-  ];
 
   function clearInitTimeout() {
     if (initTimeout) {
@@ -43,25 +37,6 @@
     }, 8000);
   }
 
-  function mountTileProvider(index) {
-    if (!map) return;
-    if (tileLayer) {
-      map.removeLayer(tileLayer);
-      tileLayer = null;
-    }
-    tileProviderIdx = index;
-    tileErrorCount = 0;
-    const provider = tileProviders[index];
-    tileLayer = L.tileLayer(provider.url, { ...provider.options, crossOrigin: true });
-    tileLayer.on('tileerror', () => {
-      tileErrorCount += 1;
-      if (tileErrorCount >= 3 && tileProviderIdx < tileProviders.length - 1) {
-        mountTileProvider(tileProviderIdx + 1);
-      }
-    });
-    tileLayer.addTo(map);
-  }
-
   $: token = params.token || '';
 
   function setBanner(sos) {
@@ -78,25 +53,30 @@
 
   function update(u) {
     if (!u || typeof u.latitude !== 'number') return;
-    const ll = [u.latitude, u.longitude];
-    const popup = `<strong>${escapeAttr(u.displayName || 'User')}</strong><br>Lat: ${formatCoordinate(u.latitude)}<br>Lng: ${formatCoordinate(u.longitude)}<br>Speed: ${u.speed || '0'} km/h`;
+    const lngLat = [u.longitude, u.latitude];
+    const popupHtml = `<strong>${escapeAttr(u.displayName || 'User')}</strong><br>Lat: ${formatCoordinate(u.latitude)}<br>Lng: ${formatCoordinate(u.longitude)}<br>Speed: ${u.speed || '0'} km/h`;
     if (!marker) {
-      marker = L.marker(ll, { icon: createMapIcon('var(--danger-500)', '', { pulse: true, markerType: 'sos' }) }).addTo(map).bindPopup(popup);
-      map.setView(ll, 16);
+      const el = createMapIcon('var(--danger-500)', '', { pulse: true, markerType: 'sos' });
+      markerPopup = new maplibregl.Popup({ offset: [0, -44], maxWidth: '280px' }).setHTML(popupHtml);
+      marker = new maplibregl.Marker({ element: el, anchor: 'bottom' })
+        .setLngLat(lngLat).setPopup(markerPopup).addTo(map);
+      map.jumpTo({ center: lngLat, zoom: 16 });
     } else {
-      animateMarkerTo('watch-target', marker, ll, 300);
-      marker.setPopupContent(popup);
-      // Adaptive recentering: only pan if marker leaves visible bounds
-      if (followMode && !map.getBounds().contains(ll)) {
-        map.panTo(ll, { animate: true, duration: 0.5 });
+      animateMarkerTo('watch-target', marker, lngLat, 300);
+      if (markerPopup) markerPopup.setHTML(popupHtml);
+      if (followMode) {
+        const bounds = map.getBounds();
+        if (!bounds.contains(lngLat)) {
+          map.easeTo({ center: lngLat, duration: 500 });
+        }
       }
     }
   }
 
   onMount(() => {
-    map = L.map(mapContainer, { center: [0, 0], zoom: 2, zoomControl: false, attributionControl: false });
-    L.control.zoom({ position: 'bottomright' }).addTo(map);
-    mountTileProvider(0);
+    map = new maplibregl.Map({ container: mapContainer, style: RASTER_STYLE, center: [0, 0], zoom: 2, attributionControl: true });
+    map.once('load', () => upgradeToVectorStyle(map));
+    map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'bottom-right');
 
     if (!token) {
       bannerText = 'Invalid watch link.';
@@ -104,7 +84,7 @@
       return;
     }
 
-    socket = io({ transports: ["websocket"], parser: msgpackParser, auth: { viewer: true } });
+    socket = createRealtimeSocket({ auth: { viewer: true } });
     socket.on('connect', () => { scheduleInitTimeout(); socket.emit('watchJoin', { token }); });
     socket.on('connect_error', () => { if (!hasInit) scheduleInitTimeout(); bannerText = 'Connection error. Retrying...'; bannerSos = true; });
     socket.on('disconnect', () => { if (!hasInit) scheduleInitTimeout(); bannerText = 'Disconnected. Reconnecting...'; bannerSos = true; });

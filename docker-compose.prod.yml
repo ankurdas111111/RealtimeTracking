@@ -1,0 +1,178 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: kinnect-db
+    environment:
+      POSTGRES_DB: kinnect
+      POSTGRES_USER: kinnect
+      POSTGRES_PASSWORD: kinnect_dev_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kinnect"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - kinnect-network
+
+  # Backend Instance 1
+  backend-1:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: kinnect-backend-1
+    environment:
+      DATABASE_URL: postgres://kinnect:kinnect_dev_password@postgres:5432/kinnect
+      SESSION_SECRET: "dev_secret_key_minimum_32_characters_long_here"
+      PORT: "3001"
+      MONITORING_PORT: "9091"
+      NODE_ENV: "production"
+      CORS_ALLOWED_ORIGINS: "http://localhost:5173,http://localhost:3000"
+    ports:
+      - "3001:3001"
+      - "9091:9091"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9091/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - kinnect-network
+    restart: unless-stopped
+
+  # Backend Instance 2
+  backend-2:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: kinnect-backend-2
+    environment:
+      DATABASE_URL: postgres://kinnect:kinnect_dev_password@postgres:5432/kinnect
+      SESSION_SECRET: "dev_secret_key_minimum_32_characters_long_here"
+      PORT: "3002"
+      MONITORING_PORT: "9092"
+      NODE_ENV: "production"
+      CORS_ALLOWED_ORIGINS: "http://localhost:5173,http://localhost:3000"
+    ports:
+      - "3002:3002"
+      - "9092:9092"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9092/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - kinnect-network
+    restart: unless-stopped
+
+  # Backend Instance 3
+  backend-3:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: kinnect-backend-3
+    environment:
+      DATABASE_URL: postgres://kinnect:kinnect_dev_password@postgres:5432/kinnect
+      SESSION_SECRET: "dev_secret_key_minimum_32_characters_long_here"
+      PORT: "3003"
+      MONITORING_PORT: "9093"
+      NODE_ENV: "production"
+      CORS_ALLOWED_ORIGINS: "http://localhost:5173,http://localhost:3000"
+    ports:
+      - "3003:3003"
+      - "9093:9093"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9093/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - kinnect-network
+    restart: unless-stopped
+
+  # Nginx Load Balancer
+  nginx:
+    image: nginx:alpine
+    container_name: kinnect-lb
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - backend-1
+      - backend-2
+      - backend-3
+    networks:
+      - kinnect-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+  # Prometheus for metrics collection
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: kinnect-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=7d'
+    depends_on:
+      - backend-1
+      - backend-2
+      - backend-3
+    networks:
+      - kinnect-network
+    restart: unless-stopped
+
+  # Grafana for dashboards
+  grafana:
+    image: grafana/grafana:latest
+    container_name: kinnect-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_SECURITY_ADMIN_USER: admin
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana-datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml:ro
+      - ./grafana-dashboards.yml:/etc/grafana/provisioning/dashboards/dashboards.yml:ro
+    depends_on:
+      - prometheus
+    networks:
+      - kinnect-network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  prometheus_data:
+  grafana_data:
+
+networks:
+  kinnect-network:
+    driver: bridge

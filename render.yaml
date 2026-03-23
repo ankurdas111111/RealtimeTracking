@@ -1,7 +1,9 @@
 services:
   - type: web
     name: kinnect
-    env: node
+    env: docker
     plan: free
-    buildCommand: npm install --include=dev && npm run build
-    startCommand: npm start
+    dockerfilePath: ./Dockerfile.backend
+    envVars:
+      - key: NODE_ENV
+        value: production

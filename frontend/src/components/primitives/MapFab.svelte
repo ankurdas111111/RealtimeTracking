@@ -12,12 +12,12 @@
   <button
     class="fab fab--secondary"
     on:click={() => dispatch('centerOnMe')}
-    title="Center on my location"
-    aria-label="Center on my location"
+    title="Center map on me"
+    aria-label="Center map on me"
   >
     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-      <circle cx="12" cy="12" r="3"/>
-      <path d="M12 1v4M12 19v4M1 12h4M19 12h4"/>
+      <path d="M12 21s-6-4.3-6-9a6 6 0 1 1 12 0c0 4.7-6 9-6 9z"/>
+      <circle cx="12" cy="12" r="2.5"/>
     </svg>
   </button>
 
@@ -26,17 +26,15 @@
     class="fab fab--secondary"
     class:follow-active={followMode}
     on:click={() => dispatch('toggleFollow')}
-    title={followMode ? 'Exit follow mode' : 'Follow my location'}
-    aria-label={followMode ? 'Exit follow mode' : 'Follow my location'}
+    title={followMode ? 'Stop following me' : 'Follow me automatically'}
+    aria-label={followMode ? 'Stop following me' : 'Follow me automatically'}
     aria-pressed={followMode}
   >
     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="8" r="3"/>
+      <path d="M6.5 19a5.5 5.5 0 0 1 11 0"/>
       {#if followMode}
-        <path d="M12 2L2 7l10 5 10-5-10-5z"/>
-        <path d="M2 17l10 5 10-5"/>
-        <path d="M2 12l10 5 10-5"/>
-      {:else}
-        <polygon points="3 11 22 2 13 21 11 13 3 11"/>
+        <path d="m17 6 1.7 1.7L22 4.4"/>
       {/if}
     </svg>
   </button>

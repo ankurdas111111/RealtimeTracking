@@ -38,6 +38,8 @@ let nativeWatchId = null;
 let active = false;
 let _CapGeolocation = null; // cached after startNative() loads the module
 let _primaryGoodFixes = 0;  // counts consecutive accurate web fixes (used to retire fallback watcher)
+let _bgGeoStarted = false;
+let _bgGeoWatcher = null;
 
 /** Call onFix only if normalise() returned a valid object. */
 function safeFix(onFix, pos, force) {
@@ -279,4 +281,52 @@ export async function checkPermission() {
  */
 export function isNativePlatform() {
   return isNative;
+}
+
+/**
+ * Attempt to start background location tracking on native platforms.
+ * Uses @capacitor-community/background-geolocation if installed.
+ * Falls back silently if the plugin is not available.
+ *
+ * @param {function} onFix Called with (normalisedPos, forceEmit) for each background fix.
+ */
+export async function startBackgroundGeo(onFix) {
+  if (!isNative || _bgGeoStarted) return;
+  try {
+    const { BackgroundGeolocation } = await import('@capacitor-community/background-geolocation');
+    _bgGeoWatcher = await BackgroundGeolocation.addWatcher({
+      backgroundTitle: 'Kinnect is tracking your location',
+      backgroundMessage: 'Tap to open',
+      requestPermissions: true,
+      stale: false,
+      distanceFilter: 10
+    }, function(location, error) {
+      if (error) return;
+      if (location) {
+        onFix({
+          latitude: location.latitude,
+          longitude: location.longitude,
+          accuracy: location.accuracy,
+          speed: location.speed,
+          timestamp: location.time || Date.now()
+        }, false);
+      }
+    });
+    _bgGeoStarted = true;
+  } catch (_) {
+    // Plugin not installed — background tracking not available
+  }
+}
+
+/**
+ * Stop background location tracking.
+ */
+export async function stopBackgroundGeo() {
+  if (!_bgGeoStarted || !_bgGeoWatcher) return;
+  try {
+    const { BackgroundGeolocation } = await import('@capacitor-community/background-geolocation');
+    await BackgroundGeolocation.removeWatcher({ id: _bgGeoWatcher });
+    _bgGeoStarted = false;
+    _bgGeoWatcher = null;
+  } catch (_) {}
 }

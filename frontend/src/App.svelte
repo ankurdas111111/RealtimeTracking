@@ -1,20 +1,21 @@
 <script>
   import Router from 'svelte-spa-router';
+  import { wrap } from 'svelte-spa-router/wrap';
   import { onMount } from 'svelte';
   import { authUser, loadSession } from './lib/stores/auth.js';
   import Login from './pages/Login.svelte';
   import Register from './pages/Register.svelte';
   import MainApp from './pages/MainApp.svelte';
-  import LiveViewer from './pages/LiveViewer.svelte';
-  import WatchViewer from './pages/WatchViewer.svelte';
+  import Monitoring from './pages/Monitoring.svelte';
   import Toast from './components/primitives/Toast.svelte';
 
   const routes = {
     '/': MainApp,
     '/login': Login,
     '/register': Register,
-    '/live/:token': LiveViewer,
-    '/watch/:token': WatchViewer
+    '/monitoring': Monitoring,
+    '/live/:token': wrap({ asyncComponent: () => import('./pages/LiveViewer.svelte') }),
+    '/watch/:token': wrap({ asyncComponent: () => import('./pages/WatchViewer.svelte') })
   };
 
   let loading = true;
@@ -22,6 +23,9 @@
   onMount(async () => {
     await loadSession();
     loading = false;
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch(() => {});
+    }
   });
 
   function conditionsFailed(event) {

@@ -1,5 +1,3 @@
-import L from 'leaflet';
-
 export function formatCoordinate(coord) {
   return coord != null ? coord.toFixed(6) : 'N/A';
 }
@@ -21,81 +19,63 @@ export function escapeAttr(str) {
   return str.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
-// Fix L: cache createMapIcon results to avoid recreating SVG + L.divIcon on every call.
-// Key: color|text|markerType|pulse — covers all parameters that affect icon appearance.
-// CSS variable colors (e.g. var(--primary-500)) resolve at paint time, not creation time,
-// so caching them is safe.
 const _iconCache = new Map();
 
+const _pinSizes = {
+  self:    [32, 42],
+  sos:     [32, 42],
+  contact: [28, 37],
+  default: [28, 37],
+  offline: [24, 32],
+  stored:  [20, 27],
+};
+
 /**
- * Create a Leaflet divIcon with badge/shield marker styling.
- * @param {string} color - The background color of the marker.
- * @param {string} text - The text to display inside the marker.
- * @param {object} options - Options: { pulse, markerType }
- *   markerType: 'self' | 'contact' | 'sos' | 'offline' | 'stored' | 'default'
+ * Create an SVG teardrop-pin marker element for MapLibre GL.
+ * The pin tip sits at the bottom-center — use `anchor: 'bottom'`
+ * on the MapLibre Marker so the tip lands on the exact coordinate.
+ *
+ * @param {string} color     CSS color for the pin fill
+ * @param {string} [_text]   Unused, kept for call-site compat
+ * @param {object} [options] { markerType, pulse }
  */
-export function createMapIcon(color, text, options = {}) {
+export function createMapIcon(color, _text, options = {}) {
   const type = options.markerType || 'default';
-  const pulse = options.pulse ? 1 : 0;
-  const cacheKey = `${color}|${text}|${type}|${pulse}`;
-  if (_iconCache.has(cacheKey)) return _iconCache.get(cacheKey);
+  const cacheKey = `${color}|${type}`;
+  const cached = _iconCache.get(cacheKey);
+  if (cached) return cached.cloneNode(true);
 
-  const pulseClass = pulse ? ' pulse' : '';
-  const typeClass = type !== 'default' ? ` marker-${type}` : '';
-  const safeColor = escapeAttr(color);
-  const safeText = escapeAttr(text || '');
+  const [w, h] = _pinSizes[type] || [28, 37];
+  const el = document.createElement('div');
+  el.className = `map-pin pin-${type}`;
+  el.style.cssText = `width:${w}px;height:${h}px;`;
 
-  let w = 32, h = 40;
-  if (type === 'self') { w = 36; h = 44; }
-  else if (type === 'sos') { w = 36; h = 44; }
-  else if (type === 'offline') { w = 28; h = 36; }
-  else if (type === 'stored') { w = 24; h = 30; }
+  el.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 34" width="${w}" height="${h}">`
+    + `<path d="M12 0C5.37 0 0 5.37 0 12c0 8.13 10.81 20.45 11.39 21.12a.77.77 0 0 0 1.22 0C13.19 32.45 24 20.13 24 12 24 5.37 18.63 0 12 0z" fill="${escapeAttr(color)}" stroke="white" stroke-width="1.8"/>`
+    + `<circle cx="12" cy="11" r="5.8" fill="white" fill-opacity="0.93"/>`
+    + `</svg>`;
 
-  const html = `<div class="badge-marker${pulseClass}${typeClass}" style="--marker-color: ${safeColor}; width: ${w}px; height: ${h}px;">
-    <svg viewBox="0 0 32 40" width="${w}" height="${h}" xmlns="http://www.w3.org/2000/svg">
-      <defs>
-        <linearGradient id="bevel-${type}" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="rgba(255,255,255,0.35)"/>
-          <stop offset="100%" stop-color="rgba(0,0,0,0.15)"/>
-        </linearGradient>
-        <filter id="shadow-${type}" x="-20%" y="-10%" width="140%" height="140%">
-          <feDropShadow dx="0" dy="2" stdDeviation="2" flood-opacity="0.3"/>
-        </filter>
-      </defs>
-      <path d="M16 38 C16 38 2 24 2 14 A14 14 0 0 1 30 14 C30 24 16 38 16 38Z"
-            fill="${safeColor}" filter="url(#shadow-${type})"/>
-      <path d="M16 38 C16 38 2 24 2 14 A14 14 0 0 1 30 14 C30 24 16 38 16 38Z"
-            fill="url(#bevel-${type})" opacity="0.5"/>
-      <circle cx="16" cy="14" r="10" fill="white" opacity="0.95"/>
-    </svg>
-    <span class="badge-text">${safeText}</span>
-  </div>`;
-
-  const icon = L.divIcon({
-    className: `custom-map-icon`,
-    html: html,
-    iconSize: [w, h],
-    iconAnchor: [w / 2, h],
-    popupAnchor: [0, -h + 4]
-  });
-  _iconCache.set(cacheKey, icon);
-  return icon;
+  _iconCache.set(cacheKey, el.cloneNode(true));
+  return el;
 }
 
 /**
- * Create a geofence circle with custom styling.
+ * Generate a GeoJSON Polygon approximating a circle.
+ * @param {[number, number]} center - [lng, lat]
+ * @param {number} radiusMeters
+ * @param {number} [points=64]
  */
-export function createGeofenceCircle(map, lat, lng, radiusM, options = {}) {
-  return L.circle([lat, lng], {
-    radius: radiusM,
-    color: options.color || 'var(--primary-500)',
-    weight: 2,
-    opacity: 0.6,
-    dashArray: '8 4',
-    fillColor: options.fillColor || 'var(--primary-500)',
-    fillOpacity: 0.06,
-    className: 'geofence-circle'
-  }).addTo(map);
+export function circleGeoJSON(center, radiusMeters, points = 64) {
+  const [lng, lat] = center;
+  const km = radiusMeters / 1000;
+  const distX = km / (111.320 * Math.cos(lat * Math.PI / 180));
+  const distY = km / 110.574;
+  const coords = [];
+  for (let i = 0; i <= points; i++) {
+    const theta = (i / points) * 2 * Math.PI;
+    coords.push([lng + distX * Math.cos(theta), lat + distY * Math.sin(theta)]);
+  }
+  return { type: 'Feature', geometry: { type: 'Polygon', coordinates: [coords] }, properties: {} };
 }
 
 export function formatDistance(meters) {

@@ -12,24 +12,32 @@ export default defineConfig({
       ? {}
       : {
           '@capacitor/app': capacitorStubPath,
-          '@capacitor/geolocation': capacitorStubPath
+          '@capacitor/geolocation': capacitorStubPath,
+          '@capacitor-community/background-geolocation': capacitorStubPath
         }
   },
   root: '.',
   publicDir: 'public',
   build: {
     outDir: 'dist',
-    emptyOutDir: true
+    emptyOutDir: true,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          maplibre: ['maplibre-gl']
+        }
+      }
+    }
   },
   server: {
     port: 5173,
     proxy: {
-      '/api': 'http://localhost:3000',
-      '/socket.io': {
-        target: 'http://localhost:3000',
+      '/api': 'http://localhost:3001',
+      '/ws': {
+        target: 'http://localhost:3001',
         ws: true
       },
-      '/health': 'http://localhost:3000'
+      '/health': 'http://localhost:3001'
     }
   }
 });

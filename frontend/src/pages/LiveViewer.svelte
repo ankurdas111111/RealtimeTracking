@@ -1,11 +1,11 @@
 <script>
   import { onMount, onDestroy } from 'svelte';
-  import L from 'leaflet';
-  import 'leaflet/dist/leaflet.css';
-  import { io } from 'socket.io-client';
-  import * as msgpackParser from 'socket.io-msgpack-parser';
+  import maplibregl from 'maplibre-gl';
+  import 'maplibre-gl/dist/maplibre-gl.css';
+  import { createRealtimeSocket } from '../lib/realtimeClient.js';
   import { createMapIcon, escapeAttr, escHtml } from '../lib/tracking.js';
   import { animateMarkerTo } from '../lib/markerInterpolator.js';
+  import { RASTER_STYLE, upgradeToVectorStyle } from '../lib/mapStyle.js';
 
   export let params = {};
 
@@ -35,13 +35,6 @@
   let lastOriginTs = null;
   let freshnessText = '';
   let freshnessInterval = null;
-  let tileLayer = null;
-  let tileProviderIdx = 0;
-  let tileErrorCount = 0;
-  const tileProviders = [
-    { url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', options: { maxZoom: 19, attribution: '&copy; OpenStreetMap contributors' } },
-    { url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', options: { maxZoom: 19, attribution: '&copy; OpenStreetMap contributors &copy; CARTO' } }
-  ];
 
   $: token = params.token || '';
 
@@ -101,27 +94,10 @@
     }, 8000);
   }
 
-  function mountTileProvider(index) {
-    if (!map) return;
-    if (tileLayer) {
-      map.removeLayer(tileLayer);
-      tileLayer = null;
-    }
-    tileProviderIdx = index;
-    tileErrorCount = 0;
-    const provider = tileProviders[index];
-    tileLayer = L.tileLayer(provider.url, { ...provider.options, crossOrigin: true });
-    tileLayer.on('tileerror', () => {
-      tileErrorCount += 1;
-      if (tileErrorCount >= 3 && tileProviderIdx < tileProviders.length - 1) {
-        mountTileProvider(tileProviderIdx + 1);
-      }
-    });
-    tileLayer.addTo(map);
-  }
+  let markerPopup = null;
 
   function connect() {
-    socket = io({ transports: ["websocket"], parser: msgpackParser, auth: { viewer: true } });
+    socket = createRealtimeSocket({ auth: { viewer: true } });
 
     socket.on('liveInit', (data) => {
       hasInit = true;
@@ -170,17 +146,19 @@
 
   function updateMarker(user) {
     if (typeof user.latitude !== 'number') return;
-    const ll = [user.latitude, user.longitude];
+    const lngLat = [user.longitude, user.latitude];
     const popupHtml = `<strong>${escHtml(user.displayName || 'User')}</strong><br>Speed: ${(user.speed || 0)} km/h<br>Updated: ${escHtml(user.formattedTime || 'N/A')}${user.batteryPct != null ? '<br>Battery: ' + user.batteryPct + '%' : ''}`;
     sharedBy = user.displayName || 'User';
     if (!marker) {
-      const icon = createMapIcon('var(--primary-500)', sharedBy[0]?.toUpperCase() || 'U', { markerType: 'contact' });
-      marker = L.marker(ll, { icon }).addTo(map).bindPopup(popupHtml);
+      const el = createMapIcon('var(--primary-500)', '', { markerType: 'contact' });
+      markerPopup = new maplibregl.Popup({ offset: [0, -39], maxWidth: '280px' }).setHTML(popupHtml);
+      marker = new maplibregl.Marker({ element: el, anchor: 'bottom' })
+        .setLngLat(lngLat).setPopup(markerPopup).addTo(map);
     } else {
-      animateMarkerTo('live-target', marker, ll, 300);
-      marker.setPopupContent(popupHtml);
+      animateMarkerTo('live-target', marker, lngLat, 300);
+      if (markerPopup) markerPopup.setHTML(popupHtml);
     }
-    if (!hasZoomed) { map.setView(ll, 15); hasZoomed = true; }
+    if (!hasZoomed) { map.jumpTo({ center: lngLat, zoom: 15 }); hasZoomed = true; }
   }
 
   function showSos(sosData) {
@@ -210,9 +188,9 @@
   onMount(() => {
     checkMobile();
     window.addEventListener('resize', checkMobile);
-    map = L.map(mapContainer, { center: [20, 78], zoom: 5, zoomControl: false, attributionControl: false });
-    L.control.zoom({ position: 'bottomright' }).addTo(map);
-    mountTileProvider(0);
+    map = new maplibregl.Map({ container: mapContainer, style: RASTER_STYLE, center: [78, 20], zoom: 5, attributionControl: true });
+    map.once('load', () => upgradeToVectorStyle(map));
+    map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'bottom-right');
     freshnessInterval = setInterval(() => {
       if (lastOriginTs) {
         const sec = Math.round((Date.now() - lastOriginTs) / 1000);
