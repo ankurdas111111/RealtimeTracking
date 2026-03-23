@@ -84,6 +84,30 @@ func main() {
 	// Start memory monitoring for free-tier optimization
 	go hub.MemoryMonitor.Start(ctx, hub)
 
+	// Initialize Redis if configured (Render production only)
+	var redisCache *cache.RedisCache
+	var sessionStore *cache.RedisSessionStore
+	if cfg.RedisURL != "" {
+		var err error
+		redisCache, err = cache.NewRedisCache(ctx, cache.RedisConfig{
+			URL:    cfg.RedisURL,
+			Prefix: "kinnect:",
+		})
+		if err != nil {
+			slog.Warn("Redis connection failed, using in-memory storage only", "error", err)
+		} else {
+			sessionStore = cache.NewRedisSessionStore(redisCache)
+			slog.Info("Redis cache initialized successfully")
+			defer redisCache.Close()
+		}
+	} else {
+		slog.Info("Redis not configured, using in-memory storage")
+	}
+
+	// Assign Redis to hub for optional use
+	hub.RedisCache = redisCache
+	hub.RedisSessionStore = sessionStore
+
 	slog.Info("Kinnect initialized",
 		"mode", cfg.NodeEnv,
 		"max_connections", cfglimits.MaxWebSocketConnections,

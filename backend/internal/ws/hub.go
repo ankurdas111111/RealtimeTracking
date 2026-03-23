@@ -70,6 +70,10 @@ type Hub struct {
 	ShutdownOnce    sync.Once
 	IsShuttingDown  bool
 
+	// Redis (optional, for Render production)
+	RedisCache       *cache.RedisCache
+	RedisSessionStore *cache.RedisSessionStore
+
 	mu sync.RWMutex
 }
 
