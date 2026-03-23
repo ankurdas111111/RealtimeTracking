@@ -28,6 +28,7 @@
   import OnboardingOverlay from '../components/OnboardingOverlay.svelte';
   import { calculateDistance } from '../lib/tracking.js';
   import { GPSKalmanFilter, VelocityKalmanFilter } from '../lib/kalman.js';
+  import { startMotionSensor, stopMotionSensor, getMotionState } from '../lib/motionSensor.js';
   import { recordFix, resetMetrics, trackingMetrics } from '../lib/stores/metrics.js';
   import { bufferPosition, clearBuffer, bufferSize } from '../lib/offlineBuffer.js';
   import { startGeo, stopGeo, warmUp, checkPermission, isNativePlatform, startBackgroundGeo, stopBackgroundGeo } from '../lib/geoProvider.js';
@@ -206,11 +207,12 @@
       if (impliedKmh > 350) return; // absolute cap (faster than any ground vehicle)
     }
 
-    // Google-style velocity Kalman filter:
-    // Feed BOTH GPS Doppler speed and position-implied speed into the filter.
-    // The filter weights them against prior state — a sudden 30 km/h spike from
-    // a stationary prior gets heavily attenuated (Kalman gain is low when uncertainty is low).
-    // Sustained real movement builds up over consecutive fixes and converges to true speed.
+    // Sensor-fused speed estimation (Google Maps approach):
+    //
+    // 1. ZUPT (Zero Velocity Update) from accelerometer — if IMU says stationary,
+    //    trust it over GPS completely. This is the most reliable signal.
+    // 2. Velocity Kalman filter — smooths out GPS speed spikes over time.
+    // 3. Position-implied speed as upper bound — GPS can't report faster than you moved.
     const rawKmh = rawSpeed != null && Number.isFinite(rawSpeed) ? rawSpeed * 3.6 : 0;
     const dtSec = lastAcceptedFix ? Math.max((now - lastAcceptedFix.ts) / 1000, 0.1) : 1;
     let impliedKmh = 0;
@@ -218,12 +220,24 @@
       const movedM = calculateDistance(lastAcceptedFix.latitude, lastAcceptedFix.longitude, rawLat, rawLng);
       impliedKmh = (movedM / dtSec) * 3.6;
     }
-    // Use the lower of GPS and implied as the measurement — can't be moving
-    // faster than position actually changed, regardless of what GPS chip says
-    const measuredKmh = rawKmh > 0 && impliedKmh > 0
-      ? Math.min(rawKmh, impliedKmh * 1.5)  // allow GPS slightly above implied (curves/acceleration)
-      : (impliedKmh > 0 ? impliedKmh : rawKmh);
-    const speed = speedFilter.filter(measuredKmh, dtSec);
+
+    // ZUPT: accelerometer overrides everything when available
+    const motion = getMotionState();
+    let speed;
+    if (motion.available && motion.stationary) {
+      // IMU confirms stationary — zero velocity update, reset filter
+      speedFilter.reset();
+      speed = 0;
+    } else {
+      // Fuse GPS + position-implied; can't exceed what position actually shows
+      const measuredKmh = rawKmh > 0 && impliedKmh > 0
+        ? Math.min(rawKmh, impliedKmh * 1.5)
+        : (impliedKmh > 0 ? impliedKmh : rawKmh);
+      // If IMU confirms moving, increase filter responsiveness
+      if (motion.available && motion.moving) speedFilter._Q = 8;
+      else speedFilter._Q = 2;
+      speed = speedFilter.filter(measuredKmh, dtSec);
+    }
 
     gpsFilter.setSpeed(speed);
     let latitude, longitude, kalmanCorrectionM;
@@ -307,11 +321,15 @@
     if (isNativePlatform()) {
       startBackgroundGeo((pos, forceEmit) => applyFix(pos, forceEmit));
     }
+
+    // Start IMU sensor fusion for better speed accuracy on mobile
+    startMotionSensor();
   }
 
   function stopTracking() {
     stopGeo();
     stopBackgroundGeo();
+    stopMotionSensor();
     tracking.set(false);
     lastAcceptedFix = null;
     lastEmittedFix = null;
