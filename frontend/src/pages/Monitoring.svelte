@@ -298,7 +298,7 @@
 		<div>
 			<div class="title">📊 Backend Monitoring Dashboard</div>
 			<div class="last-update">
-				<span class="refresh-indicator" />
+				<span class="refresh-indicator"></span>
 				Last update: {$lastUpdate || 'loading...'}
 			</div>
 		</div>
@@ -372,7 +372,7 @@
 									($diagnosticsData.runtime.memory_mb.alloc / 1000) * 100,
 									100
 								)}%"
-							/>
+							></div>
 						</div>
 					</div>
 
@@ -398,7 +398,7 @@
 									($diagnosticsData.runtime.goroutines / 10000) * 100,
 									100
 								)}%"
-							/>
+							></div>
 						</div>
 					</div>
 
