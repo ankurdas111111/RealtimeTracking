@@ -109,7 +109,19 @@
     if ($mySafetyStatus?.geofence?.enabled) selfBadges.push('<span style="color:#8b5cf6">⬡ Geofence</span>');
     if ($mySafetyStatus?.autoSos?.enabled) selfBadges.push('<span style="color:#f59e0b">⏱ Auto-SOS</span>');
     if ($mySafetyStatus?.checkIn?.enabled) selfBadges.push('<span style="color:#06b6d4">✓ Check-in</span>');
-    const selfPopupHtml = '<strong>You</strong>' + (selfBadges.length ? '<br/><div style="margin-top:4px;font-size:11px;line-height:1.4">' + selfBadges.join(' &middot; ') + '</div>' : '');
+    let selfPopupHtml = '<div style="min-width:180px;font-size:12px;line-height:1.5"><strong style="font-size:14px">You</strong>';
+    selfPopupHtml += '<div style="display:grid;grid-template-columns:auto 1fr;gap:2px 10px;font-size:11px;color:#555;margin-top:6px">';
+    selfPopupHtml += `<span style="font-weight:600;color:#374151">Online</span><span style="color:#22c55e;font-weight:600">● Connected</span>`;
+    selfPopupHtml += `<span style="font-weight:600;color:#374151">Speed</span><span>${speed || '0'} km/h</span>`;
+    if (accuracy != null) {
+      const accColor = accuracy <= 15 ? '#22c55e' : accuracy <= 50 ? '#eab308' : '#ef4444';
+      selfPopupHtml += `<span style="font-weight:600;color:#374151">Accuracy</span><span style="color:${accColor}">~${Math.round(accuracy)}m</span>`;
+    }
+    if (formattedTime) selfPopupHtml += `<span style="font-weight:600;color:#374151">Updated</span><span>${escapeAttr(String(formattedTime))}</span>`;
+    selfPopupHtml += `<span style="font-weight:600;color:#374151">Position</span><span style="font-family:monospace;font-size:10px">${Number(latitude).toFixed(5)}, ${Number(longitude).toFixed(5)}</span>`;
+    selfPopupHtml += '</div>';
+    if (selfBadges.length) selfPopupHtml += '<div style="margin-top:6px;display:flex;flex-direction:column;gap:3px;font-size:10px">' + selfBadges.join('<br/>') + '</div>';
+    selfPopupHtml += '</div>';
 
     if (!myMarker) {
       const el = createMapIcon('var(--primary-500)', '', { markerType: 'self' });
