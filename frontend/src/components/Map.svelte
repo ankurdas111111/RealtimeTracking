@@ -73,34 +73,19 @@
       ensureCircleLayer('my-geofence-fill', 'my-geofence', '#8b5cf6', 0.10, '#8b5cf6', 2.5, [8, 5]);
     }
 
-    let styleFallbackDone = false;
+    map = new maplibregl.Map({
+      container: mapContainer,
+      style: MAP_STYLE,
+      center: [78.9629, 20.5937], // Center of India
+      zoom: 4,
+      attributionControl: true
+    });
 
-    function initMap(style) {
-      map = new maplibregl.Map({
-        container: mapContainer,
-        style,
-        center: [78.9629, 20.5937], // Center of India
-        zoom: 4,
-        attributionControl: true
-      });
+    map.addControl(new maplibregl.NavigationControl({ showCompass: false }),
+      isMobile ? 'bottom-right' : 'top-right');
 
-      map.addControl(new maplibregl.NavigationControl({ showCompass: false }),
-        isMobile ? 'bottom-right' : 'top-right');
-
-      map.on('dragstart', () => { followMode = false; });
-      map.on('load', addCircleSources);
-
-      // If vector tiles fail to load, fall back to raster
-      map.on('error', (e) => {
-        if (!styleFallbackDone && style !== RASTER_STYLE) {
-          styleFallbackDone = true;
-          map.once('style.load', addCircleSources);
-          map.setStyle(RASTER_STYLE);
-        }
-      });
-    }
-
-    initMap(MAP_STYLE);
+    map.on('dragstart', () => { followMode = false; });
+    map.on('load', addCircleSources);
   });
 
   onDestroy(() => {

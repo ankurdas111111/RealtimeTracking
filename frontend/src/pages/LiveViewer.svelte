@@ -5,7 +5,7 @@
   import { createRealtimeSocket } from '../lib/realtimeClient.js';
   import { createMapIcon, escapeAttr, escHtml } from '../lib/tracking.js';
   import { animateMarkerTo } from '../lib/markerInterpolator.js';
-  import { MAP_STYLE, RASTER_STYLE } from '../lib/mapStyle.js';
+  import { MAP_STYLE } from '../lib/mapStyle.js';
 
   export let params = {};
 
@@ -189,7 +189,6 @@
     checkMobile();
     window.addEventListener('resize', checkMobile);
     map = new maplibregl.Map({ container: mapContainer, style: MAP_STYLE, center: [78, 20], zoom: 5, attributionControl: true });
-    map.on('error', () => { if (map.getStyle() !== RASTER_STYLE) map.setStyle(RASTER_STYLE); });
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'bottom-right');
     freshnessInterval = setInterval(() => {
       if (lastOriginTs) {
