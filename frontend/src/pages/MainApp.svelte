@@ -304,7 +304,11 @@
       (pos, forceEmit) => applyFix(pos, forceEmit || !lastAcceptedFix),
       (err) => {
         if (err.code === 1) {
-          banner.set({ type: 'info', text: 'Location access denied. Enable permissions in your settings.', actions: [] });
+          const isDesktop = !/Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+          const msg = isDesktop
+            ? 'Location access denied. Allow location in your browser, and check OS Settings → Privacy → Location Services too.'
+            : 'Location access denied. Enable location permission for this site in your device settings.';
+          banner.set({ type: 'info', text: msg, actions: [] });
           stopTracking();
           return;
         }
@@ -330,6 +334,8 @@
     lastAcceptedFix = null;
     lastEmittedFix = null;
     lastEmitAt = 0;
+    lastRawLat = null;
+    lastRawLng = null;
     lastCoarseNoticeAt = 0;
     lastRawLat = null;
     lastRawLng = null;

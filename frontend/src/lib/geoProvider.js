@@ -40,6 +40,13 @@ let _CapGeolocation = null; // cached after startNative() loads the module
 let _primaryGoodFixes = 0;  // counts consecutive accurate web fixes (used to retire fallback watcher)
 let _bgGeoStarted = false;
 let _bgGeoWatcher = null;
+let _desktopRefreshTimer = null; // desktop only: polls for fresh position every 30s
+
+// True when running on a mobile browser (not native, not desktop)
+function isMobileBrowser() {
+  return typeof navigator !== 'undefined' &&
+    /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+}
 
 /** Call onFix only if normalise() returned a valid object. */
 function safeFix(onFix, pos, force) {
@@ -138,6 +145,20 @@ function startWeb(onFix, onError) {
   // Start fallback watch immediately
   startFallbackWatch(onFix);
 
+  // Desktop: watchPosition fires only 1–2 times without GPS hardware (macOS/Windows Chrome
+  // uses WiFi/IP once and goes silent). Poll every 30s so the server always has a fresh
+  // position and the map marker stays alive.
+  if (!isMobileBrowser()) {
+    _desktopRefreshTimer = setInterval(() => {
+      if (!active) return;
+      navigator.geolocation.getCurrentPosition(
+        (pos) => safeFix(onFix, pos, false),
+        () => {},
+        { enableHighAccuracy: false, timeout: 10000, maximumAge: 0 }
+      );
+    }, 30000);
+  }
+
   // Primary high-accuracy watch
   primaryWatchId = navigator.geolocation.watchPosition(
     (pos) => {
@@ -179,6 +200,10 @@ function startFallbackWatch(onFix) {
 
 function stopWeb() {
   _primaryGoodFixes = 0;
+  if (_desktopRefreshTimer != null) {
+    clearInterval(_desktopRefreshTimer);
+    _desktopRefreshTimer = null;
+  }
   if (primaryWatchId != null) {
     navigator.geolocation.clearWatch(primaryWatchId);
     primaryWatchId = null;
