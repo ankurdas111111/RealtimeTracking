@@ -7,6 +7,7 @@
   import { animateMarkerTo, cancelAnimation, cancelAllAnimations } from '../lib/markerInterpolator.js';
   import { getUserColor } from '../lib/getUserColor.js';
   import { MAP_STYLE, RASTER_STYLE } from '../lib/mapStyle.js';
+  import { debounce } from '../lib/debounce.js';
 
   export let followMode = false;
 
@@ -82,13 +83,15 @@
     }
   }
 
+  const debouncedCheckMobile = debounce(checkMobile, 80);
+
   onMount(() => {
     checkMobile();
-    window.addEventListener('resize', checkMobile);
+    window.addEventListener('resize', debouncedCheckMobile);
 
     // Configure MapLibre GL worker (required for proper rendering)
     maplibregl.workerUrl = '/maplibre-gl-csp-worker.js';
-    maplibregl.workerCount = 2;
+    maplibregl.workerCount = isMobile ? 1 : 2;
 
     function addCircleSources() {
       ensureCircleSource('my-geofence');
@@ -181,7 +184,7 @@
     if (myMarker) myMarker.remove();
     if (myPopup) myPopup.remove();
     if (map) map.remove();
-    if (typeof window !== 'undefined') window.removeEventListener('resize', checkMobile);
+    if (typeof window !== 'undefined') window.removeEventListener('resize', debouncedCheckMobile);
   });
 
   $: if (map && $myLocation) {

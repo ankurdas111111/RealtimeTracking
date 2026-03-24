@@ -29,7 +29,7 @@
     <div class="stats">
       <div class="stat">
         <span>Speed</span>
-        <strong>{location.speed || 0} km/h</strong>
+        <strong>{(location.speed || 0).toFixed(1)} km/h</strong>
       </div>
       <div class="stat">
         <span>Accuracy</span>

@@ -279,6 +279,14 @@
   min-width: 0;
 }
 
+/* Stack name row on very small screens */
+@media (max-width: 400px) {
+  .auth-name-row {
+    flex-direction: column;
+    gap: 0;
+  }
+}
+
 /* ── Segmented Toggle ──────────────────────────────────────────────────── */
 .auth-toggle {
   display: flex;

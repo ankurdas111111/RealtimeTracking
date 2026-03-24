@@ -36,6 +36,7 @@
   import { uiShellStore, setMobileTab, setSheetOpen } from '../lib/stores/uiShell.js';
   import { latencyMetrics } from '../lib/stores/latency.js';
   import { haptics } from '../lib/haptics.js';
+  import { debounce } from '../lib/debounce.js';
 
   let activePanel = null;
   let sidebarTab = 'info';
@@ -356,13 +357,15 @@
     document.removeEventListener('pointerdown', prewarmAudio);
   }
 
+  const debouncedCheckMobile = debounce(checkMobile, 80);
+
   onMount(async () => {
     if (!$authUser) { push('/login'); return; }
     setupSocketHandlers();
     pushProfile();
     const profileInterval = setInterval(pushProfile, 30000);
     checkMobile();
-    window.addEventListener('resize', checkMobile);
+    window.addEventListener('resize', debouncedCheckMobile);
     setOnlineStatus(typeof navigator !== 'undefined' ? navigator.onLine : true);
     setSocketConnected(socket.connected);
     setBufferedCount(bufferSize());
@@ -426,7 +429,7 @@
       mounted = false;
       clearInterval(profileInterval);
       stopTracking();
-      window.removeEventListener('resize', checkMobile);
+      window.removeEventListener('resize', debouncedCheckMobile);
       window.removeEventListener('online', onOnline);
       window.removeEventListener('offline', onOffline);
       socket.off('connect', onSocketConnect);
@@ -627,9 +630,10 @@
   .me-subtabs {
     display: flex;
     gap: 4px;
-    padding: 8px 12px;
-    background: var(--surface-secondary, #f3f4f6);
-    border-radius: 8px;
+    padding: 4px;
+    background: var(--surface-inset);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-subtle);
     margin: 0 0 8px;
   }
 
@@ -638,18 +642,22 @@
     padding: 6px 8px;
     border: none;
     background: transparent;
-    color: var(--text-secondary, #666);
+    color: var(--text-secondary);
     font-size: 12px;
     font-weight: 600;
-    border-radius: 6px;
+    border-radius: calc(var(--radius-md) - 4px);
     cursor: pointer;
     transition: all 0.15s;
   }
 
   .subtab.active {
-    background: var(--surface-primary, white);
-    color: var(--primary-500, #3b82f6);
-    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    background: var(--surface-2);
+    color: var(--primary-600);
+    box-shadow: var(--shadow-sm);
+  }
+
+  :global([data-theme="dark"]) .subtab.active {
+    color: var(--primary-400);
   }
 
   .safety-quick-actions {
@@ -749,13 +757,14 @@
     animation: fade-in 0.15s ease;
   }
   .sos-confirm-card {
-    background: var(--surface-primary, white);
+    background: var(--surface-2);
+    border: 1px solid var(--border-default);
     border-radius: 16px;
     padding: 28px 24px 20px;
     max-width: 340px;
     width: 100%;
     text-align: center;
-    box-shadow: 0 24px 48px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 24px 48px rgba(0, 0, 0, 0.25);
     animation: scale-in 0.2s ease;
   }
   .sos-confirm-icon {
@@ -764,12 +773,12 @@
   .sos-confirm-title {
     font-size: 18px;
     font-weight: 700;
-    color: var(--text-primary, #111);
+    color: var(--text-primary);
     margin: 0 0 8px;
   }
   .sos-confirm-desc {
     font-size: 13px;
-    color: var(--text-secondary, #666);
+    color: var(--text-secondary);
     line-height: 1.5;
     margin: 0 0 20px;
   }
@@ -784,12 +793,13 @@
     border-radius: 10px;
     font-weight: 600;
     font-size: 14px;
-    background: var(--surface-secondary, #f3f4f6);
-    color: var(--text-primary, #333);
-    border: none;
+    background: var(--surface-inset);
+    color: var(--text-primary);
+    border: 1px solid var(--border-default);
     cursor: pointer;
+    transition: background var(--duration-fast) var(--ease-out);
   }
-  .sos-cancel-btn:hover { background: var(--surface-tertiary, #e5e7eb); }
+  .sos-cancel-btn:hover { background: var(--surface-hover); }
   .sos-send-btn {
     flex: 1;
     padding: 10px 16px;

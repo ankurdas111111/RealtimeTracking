@@ -90,22 +90,22 @@
     transform: scale(0.93) !important;
   }
 
-  /* Primary FAB — 56px, violet gradient */
+  /* Primary FAB — 56px, blue gradient */
   .fab--primary {
     width: 56px;
     height: 56px;
-    background: linear-gradient(135deg, var(--primary-500, #6366f1) 0%, var(--primary-700, #4338ca) 100%);
+    background: linear-gradient(135deg, var(--primary-500) 0%, var(--primary-700) 100%);
     color: #ffffff;
     box-shadow:
-      0 4px 20px rgba(99, 102, 241, 0.50),
-      0 0 0 1px rgba(99, 102, 241, 0.20);
+      0 4px 20px rgba(37, 99, 235, 0.50),
+      0 0 0 1px rgba(59, 130, 246, 0.20);
   }
 
   .fab--primary:hover {
     transform: scale(1.05);
     box-shadow:
-      0 6px 28px rgba(99, 102, 241, 0.65),
-      0 0 0 1px rgba(99, 102, 241, 0.30);
+      0 6px 28px rgba(37, 99, 235, 0.65),
+      0 0 0 1px rgba(59, 130, 246, 0.30);
   }
 
   /* Tracking active — red breathing */
@@ -126,7 +126,7 @@
     }
   }
 
-  /* Secondary FABs — 40px glass */
+  /* Secondary FABs — 44px glass */
   .fab--secondary {
     width: 44px;
     height: 44px;
@@ -139,14 +139,14 @@
 
   .fab--secondary:hover {
     transform: scale(1.08);
-    color: var(--primary-500, #6366f1);
+    color: var(--primary-500);
     background: var(--glass-bg-strong, rgba(255,255,255,0.95));
   }
 
   .fab--secondary.follow-active {
-    color: var(--primary-500, #6366f1);
-    background: rgba(99, 102, 241, 0.12);
-    box-shadow: 0 2px 12px rgba(99,102,241,0.25), 0 0 0 1px rgba(99,102,241,0.30);
+    color: var(--primary-500);
+    background: rgba(37, 99, 235, 0.10);
+    box-shadow: 0 2px 12px rgba(37, 99, 235, 0.25), 0 0 0 1px rgba(59, 130, 246, 0.30);
   }
 
   :global([data-theme="dark"]) .fab--secondary {
@@ -157,13 +157,13 @@
 
   :global([data-theme="dark"]) .fab--secondary:hover {
     background: rgba(30, 41, 59, 0.95);
-    color: var(--primary-400, #818cf8);
+    color: var(--primary-400);
   }
 
   :global([data-theme="dark"]) .fab--secondary.follow-active {
-    background: rgba(99, 102, 241, 0.20);
-    box-shadow: 0 2px 12px rgba(99,102,241,0.30), 0 0 0 1px rgba(99,102,241,0.35);
-    color: var(--primary-400, #818cf8);
+    background: rgba(37, 99, 235, 0.18);
+    box-shadow: 0 2px 12px rgba(59,130,246,0.30), 0 0 0 1px rgba(96,165,250,0.35);
+    color: var(--primary-400);
   }
 
   @media (prefers-reduced-motion: reduce) {

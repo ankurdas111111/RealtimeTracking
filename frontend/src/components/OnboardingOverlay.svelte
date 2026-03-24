@@ -56,8 +56,8 @@
               <path d="M7 7v6M7 10l3.5-3M7 10l3.5 3" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
               <defs>
                 <linearGradient id="kpin-grad" x1="0" y1="0" x2="20" y2="24" gradientUnits="userSpaceOnUse">
-                  <stop stop-color="#818cf8"/>
-                  <stop offset="1" stop-color="#4338ca"/>
+                  <stop stop-color="#60a5fa"/>
+                  <stop offset="1" stop-color="#1d4ed8"/>
                 </linearGradient>
               </defs>
             </svg>
@@ -180,7 +180,7 @@
   .step-dot.active {
     width: 20px;
     border-radius: 3px;
-    background: var(--primary-500, #6366f1);
+    background: var(--primary-500);
   }
 
   .onboarding-step {
@@ -195,12 +195,12 @@
   .brand-icon {
     width: 72px;
     height: 72px;
-    background: linear-gradient(135deg, rgba(99,102,241,0.12) 0%, rgba(67,56,202,0.08) 100%);
+    background: linear-gradient(135deg, rgba(59,130,246,0.12) 0%, rgba(29,78,216,0.08) 100%);
     border-radius: 20px;
     display: flex;
     align-items: center;
     justify-content: center;
-    border: 1px solid rgba(99,102,241,0.15);
+    border: 1px solid rgba(59,130,246,0.15);
   }
 
   .onboarding-title {
@@ -225,8 +225,8 @@
     gap: 6px;
     font-size: 12px;
     color: var(--text-tertiary);
-    background: rgba(99,102,241,0.06);
-    border: 1px solid rgba(99,102,241,0.12);
+    background: rgba(59,130,246,0.06);
+    border: 1px solid rgba(59,130,246,0.12);
     border-radius: 8px;
     padding: 6px 12px;
   }
@@ -243,13 +243,13 @@
     width: 100%;
     padding: 14px;
     border-radius: 12px;
-    background: linear-gradient(135deg, var(--primary-500, #6366f1) 0%, var(--primary-700, #4338ca) 100%);
+    background: linear-gradient(135deg, var(--primary-500) 0%, var(--primary-700) 100%);
     color: white;
     font-size: 15px;
     font-weight: 700;
     border: none;
     cursor: pointer;
-    box-shadow: 0 4px 16px rgba(99,102,241,0.40);
+    box-shadow: 0 4px 16px rgba(37,99,235,0.40);
     transition: transform 0.15s, box-shadow 0.15s;
   }
 
@@ -309,7 +309,7 @@
     font-size: 18px;
     font-weight: 800;
     letter-spacing: 0.12em;
-    color: var(--primary-600, #4f46e5);
+    color: var(--primary-600);
     flex: 1;
     text-align: center;
   }
@@ -327,6 +327,7 @@
   }
 
   .copy-btn:hover { color: var(--primary-500); }
+
   .copy-btn:disabled { opacity: 0.4; cursor: default; }
 
   /* Input row */
@@ -357,13 +358,13 @@
 
   .code-input:focus {
     border-color: var(--primary-500);
-    box-shadow: 0 0 0 3px rgba(99,102,241,0.12);
+    box-shadow: 0 0 0 3px rgba(59,130,246,0.15);
   }
 
   .add-btn {
     padding: 10px 18px;
     border-radius: 10px;
-    background: var(--primary-500, #6366f1);
+    background: var(--primary-500);
     color: white;
     font-size: 14px;
     font-weight: 700;
@@ -377,7 +378,7 @@
     justify-content: center;
   }
 
-  .add-btn:hover:not(:disabled) { background: var(--primary-600, #4f46e5); }
+  .add-btn:hover:not(:disabled) { background: var(--primary-600); }
   .add-btn:active:not(:disabled) { transform: scale(0.95); }
   .add-btn:disabled { opacity: 0.6; cursor: default; }
 

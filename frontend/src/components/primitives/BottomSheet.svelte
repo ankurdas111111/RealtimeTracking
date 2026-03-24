@@ -14,8 +14,8 @@
   let lastFocusedEl = null;
   let wasOpen = false;
 
-  const SNAP_PEEK = 0.80;   // 20% of screen visible from bottom
-  const SNAP_HALF = 0.50;
+  const SNAP_PEEK = 0.65;   // 35% of screen visible from bottom
+  const SNAP_HALF = 0.45;
   const SNAP_FULL = 0.08;
 
   $: viewH = typeof window !== 'undefined' ? window.innerHeight : 800;

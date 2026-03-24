@@ -7,6 +7,7 @@ const capacitorStubPath = fileURLToPath(new URL('./src/lib/capacitor-stub.js', i
 
 export default defineConfig({
   plugins: [svelte()],
+  cacheDir: process.env.VITE_CACHE_DIR || 'node_modules/.vite',
   resolve: {
     alias: isCapacitorTarget
       ? {}

@@ -1,5 +1,6 @@
 <script>
   import { onMount, onDestroy } from 'svelte';
+  import { debounce } from '../../lib/debounce.js';
 
   export let sidebarOpen = true;
   export let rightPanelOpen = false;
@@ -13,13 +14,15 @@
     isTablet = w >= 768 && w < 1024;
   }
 
+  const debouncedCheck = debounce(checkBreakpoint, 80);
+
   onMount(() => {
     checkBreakpoint();
-    window.addEventListener('resize', checkBreakpoint);
+    window.addEventListener('resize', debouncedCheck);
   });
 
   onDestroy(() => {
-    if (typeof window !== 'undefined') window.removeEventListener('resize', checkBreakpoint);
+    if (typeof window !== 'undefined') window.removeEventListener('resize', debouncedCheck);
   });
 </script>
 
@@ -127,7 +130,8 @@
 
   .app-layout.mobile .layout-map {
     grid-column: 1;
-    padding-top: 108px;
+    /* Base 108px accounts for topbar content height; safe-top adds notch/Dynamic Island offset */
+    padding-top: calc(var(--safe-top, 0px) + 108px);
   }
 
   .layout-tabs {

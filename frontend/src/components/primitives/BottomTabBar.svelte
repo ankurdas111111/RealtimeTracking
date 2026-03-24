@@ -113,10 +113,10 @@
     display: flex;
     align-items: stretch;
     justify-content: space-around;
+    /* Solid background avoids a costly GPU compositing layer on mid-range Android */
     background: var(--surface-2);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
     border-top: 1px solid var(--border-default);
+    box-shadow: 0 -1px 0 var(--border-subtle);
     padding-bottom: var(--safe-bottom);
     z-index: var(--z-navbar);
     position: relative;

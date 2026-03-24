@@ -211,10 +211,10 @@
     position: absolute;
     bottom: var(--space-3);
     right: var(--space-2);
-    width: 28px;
-    height: 28px;
-    min-width: 28px;
-    min-height: 28px;
+    width: 36px;
+    height: 36px;
+    min-width: 36px;
+    min-height: 36px;
     border-radius: 50%;
     opacity: 0.6;
   }

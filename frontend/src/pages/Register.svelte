@@ -368,13 +368,21 @@
     gap: var(--space-2);
     margin-top: var(--space-1);
   }
+  .label {
+    font-size: var(--text-xs);
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin: 0;
+  }
+
   .strength-bar {
     flex: 1;
     height: 4px;
-    background: var(--neu-dark, #babecc);
+    background: var(--border-default);
     border-radius: 2px;
     overflow: hidden;
-    box-shadow: inset 1px 1px 2px rgba(0,0,0,0.10);
   }
   .strength-fill {
     height: 100%;
