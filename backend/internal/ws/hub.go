@@ -21,8 +21,11 @@ const (
 	chanUnregisterBuf = 256
 	chanDispatchBuf  = 1024
 	chanBroadcastBuf = 512
-	offlineGrace24h   = 24 * 60 * 60 * 1000
-	offlineGrace48h   = 48 * 60 * 60 * 1000
+	offlineGrace24h  = 24 * 60 * 60 * 1000
+	offlineGrace48h  = 48 * 60 * 60 * 1000
+	offlineGrace5d   = 5 * 24 * 60 * 60 * 1000
+	offlineGrace10d  = 10 * 24 * 60 * 60 * 1000
+	offlineGrace30d  = 30 * 24 * 60 * 60 * 1000
 )
 
 type dispatchMsg struct {
@@ -106,6 +109,10 @@ func (h *Hub) buildEventHandlers() map[string]func(*Client, json.RawMessage) {
 		"profileUpdate":        h.handleProfileUpdate,
 		"setRetention":         h.handleSetRetention,
 		"setRetentionForever":  h.handleSetRetentionForever,
+		"setPrivacyPause":      h.handleSetPrivacyPause,
+		"getVapidKey":          h.handleGetVapidKey,
+		"pushSubscribe":        h.handlePushSubscribe,
+		"pushUnsubscribe":      h.handlePushUnsubscribe,
 		"adminDeleteUser":      h.handleAdminDeleteUser,
 		"createRoom":           h.handleCreateRoom,
 		"joinRoom":             h.handleJoinRoom,
@@ -320,12 +327,22 @@ func (h *Hub) handleUnregister(c *Client) {
 		mode = user.Retention.Mode
 	}
 	now := time.Now().UnixMilli()
-	if mode == "forever" {
+	switch mode {
+	case "forever":
 		expiresAt = nil
-	} else if mode == "48h" {
+	case "48h":
 		t := now + offlineGrace48h
 		expiresAt = &t
-	} else {
+	case "5d":
+		t := now + offlineGrace5d
+		expiresAt = &t
+	case "10d":
+		t := now + offlineGrace10d
+		expiresAt = &t
+	case "30d":
+		t := now + offlineGrace30d
+		expiresAt = &t
+	default: // "default" = 24h
 		t := now + offlineGrace24h
 		expiresAt = &t
 	}

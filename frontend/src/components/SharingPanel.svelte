@@ -134,6 +134,7 @@
   <div class="panel-body">
     <div class="section">
       <h4>Rooms</h4>
+      <p class="hint">A room is a group where all members can see each other's live location. Create one and share the code, or join with someone else's code.</p>
       <div class="input-group">
         <input class="input" bind:value={roomName} placeholder="Room name" />
         <button class="btn btn-primary btn-sm" on:click={createRoom} disabled={loading.createRoom}>{loading.createRoom ? '...' : 'Create'}</button>
@@ -214,6 +215,7 @@
 
     <div class="section">
       <h4>Contacts</h4>
+      <p class="hint">Add someone using their share code (found in their <strong>Info</strong> tab). Contacts see your live location when you're both tracking. <strong>Be Guardian</strong> = you watch them. <strong>Make Guardian</strong> = they watch you.</p>
       <div class="input-group">
         <input class="input" bind:value={contactCode} placeholder="Share code" on:keydown={e => e.key === 'Enter' && addContact()} />
         <button class="btn btn-primary btn-sm" on:click={addContact} disabled={loading.addContact}>{loading.addContact ? '...' : 'Add'}</button>
@@ -259,6 +261,7 @@
 
     <div class="section">
       <h4>Live Links</h4>
+      <p class="hint">Share a temporary link so anyone — even without an account — can see your live location. Set an expiry time or revoke it instantly.</p>
       <div class="live-link-toolbar">
         <select class="select live-duration-select" bind:value={selectedLinkDuration} aria-label="Live link duration">
           <option value="1h">1 Hour</option>
@@ -311,6 +314,14 @@
 {/if}
 
 <style>
+  .hint {
+    font-size: 12px;
+    color: var(--text-tertiary, #888);
+    line-height: 1.5;
+    margin: 0 0 8px;
+  }
+  .hint strong { color: var(--text-secondary, #aaa); font-weight: 600; }
+
   .list { margin-top: var(--space-2); }
   .list-empty { padding: var(--space-2) 0; }
   .live-link-toolbar {

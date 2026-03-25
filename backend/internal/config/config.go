@@ -17,6 +17,10 @@ type Config struct {
 	LogLevel            string
 	CORSAllowedOrigins  []string
 	RedisURL            string // Optional: Redis connection URL from Aiven
+	// Web Push (VAPID) — optional; push features disabled if empty.
+	VAPIDPublicKey  string
+	VAPIDPrivateKey string
+	VAPIDSubject    string // mailto: or https: URL
 }
 
 const (
@@ -86,6 +90,9 @@ func Load() (*Config, error) {
 		LogLevel:           logLevel,
 		CORSAllowedOrigins: corsOrigins,
 		RedisURL:           os.Getenv("REDIS_URL"), // Optional
+		VAPIDPublicKey:     os.Getenv("VAPID_PUBLIC_KEY"),
+		VAPIDPrivateKey:    os.Getenv("VAPID_PRIVATE_KEY"),
+		VAPIDSubject:       os.Getenv("VAPID_SUBJECT"),
 	}, nil
 }
 

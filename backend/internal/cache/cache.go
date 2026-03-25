@@ -72,10 +72,11 @@ type ActiveUser struct {
 	Geofence         Geofence
 	AutoSOS          AutoSOS
 	CheckIn          CheckIn
-	Retention        *Retention
-	Rooms            []string
-	Online           bool
-	ForceDelete      bool
+	Retention          *Retention
+	PrivacyPausedUntil *int64
+	Rooms              []string
+	Online             bool
+	ForceDelete        bool
 }
 
 // WatchTokenEntry holds watch token state.
@@ -89,6 +90,13 @@ type WatchTokenEntry struct {
 type OfflineEntry struct {
 	User     *ActiveUser
 	ExpiresAt *int64
+}
+
+// PushSubscription holds a Web Push subscription for a user.
+type PushSubscription struct {
+	Endpoint string
+	P256dh   string
+	Auth     string
 }
 
 // Cache is the thread-safe in-memory cache. All access goes through methods.
@@ -123,6 +131,7 @@ type Cache struct {
 	LiveTokensByUser map[string]map[string]bool
 	UserRooms        map[string]map[string]bool
 	AdminClientIds   map[string]bool
+	PushSubs         map[string][]PushSubscription // userID -> subscriptions
 
 	// Lazy loading
 	lazyLoader *LazyLoader
@@ -154,6 +163,7 @@ func New() *Cache {
 		LiveTokensByUser:  make(map[string]map[string]bool),
 		UserRooms:         make(map[string]map[string]bool),
 		AdminClientIds:    make(map[string]bool),
+		PushSubs:          make(map[string][]PushSubscription),
 		lazyLoader:        nil, // Set via SetLazyLoader
 	}
 }
@@ -968,4 +978,50 @@ func (c *Cache) CacheSize() int64 {
 	size += mapOverhead + int64(len(c.AdminClientIds))*(entryOverhead+ptrSize)
 
 	return size
+}
+
+// AddPushSubscription stores a Web Push subscription for the user (deduped by endpoint).
+func (c *Cache) AddPushSubscription(userID, endpoint, p256dh, auth string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	subs := c.PushSubs[userID]
+	for i, s := range subs {
+		if s.Endpoint == endpoint {
+			subs[i] = PushSubscription{Endpoint: endpoint, P256dh: p256dh, Auth: auth}
+			c.PushSubs[userID] = subs
+			return
+		}
+	}
+	c.PushSubs[userID] = append(subs, PushSubscription{Endpoint: endpoint, P256dh: p256dh, Auth: auth})
+}
+
+// RemovePushSubscription removes a Web Push subscription by endpoint.
+func (c *Cache) RemovePushSubscription(userID, endpoint string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	subs := c.PushSubs[userID]
+	filtered := subs[:0]
+	for _, s := range subs {
+		if s.Endpoint != endpoint {
+			filtered = append(filtered, s)
+		}
+	}
+	if len(filtered) == 0 {
+		delete(c.PushSubs, userID)
+	} else {
+		c.PushSubs[userID] = filtered
+	}
+}
+
+// GetPushSubscriptions returns all Web Push subscriptions for the user.
+func (c *Cache) GetPushSubscriptions(userID string) []PushSubscription {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	subs := c.PushSubs[userID]
+	if len(subs) == 0 {
+		return nil
+	}
+	out := make([]PushSubscription, len(subs))
+	copy(out, subs)
+	return out
 }

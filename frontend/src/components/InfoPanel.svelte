@@ -89,6 +89,7 @@
   <div class="panel-body">
     <div class="section">
       <h4>Your Location</h4>
+      <p class="hint">Your live GPS coordinates, speed and accuracy while tracking is active. Use the <strong>Track / Stop</strong> button in the top bar to toggle sharing.</p>
       {#if $myLocation}
         <div class="metric-grid">
           <div class="metric-card"><span class="metric-label">Latitude</span><span class="metric-value">{formatCoordinate($myLocation.latitude)}</span></div>
@@ -136,6 +137,7 @@
 
     <div class="section">
       <h4>Your Share Code</h4>
+      <p class="hint">Give this code to anyone you want to share your location with. They enter it in <strong>Sharing → Contacts</strong>.</p>
       <div class="code-row">
         <span class="code-value text-mono">{$myShareCode || '...'}</span>
         <button class="btn btn-sm btn-secondary" on:click={copyShareCode}>Copy</button>
@@ -152,6 +154,7 @@
 
     <div class="section">
       <h4>Safety</h4>
+      <p class="hint"><strong>SOS</strong> — broadcasts an emergency alert with your live location to all contacts. <strong>I'm OK</strong> — sends a check-in so contacts know you're safe.</p>
       <div class="flex-row-wrap">
         <button class="btn" class:btn-danger={!$mySosActive} class:btn-secondary={$mySosActive} on:click={toggleSOS}>
           {$mySosActive ? 'Cancel SOS' : 'SOS'}
@@ -161,7 +164,7 @@
       <label class="toggle mt-3">
         <input type="checkbox" bind:checked={keep48Toggle} on:change={setRetention}>
         <span class="toggle-track"></span>
-        Keep location 48h
+        Keep location 48h after going offline
       </label>
     </div>
 
@@ -204,6 +207,7 @@
       <hr class="divider" />
       <div class="section">
         <h4>Guardian Relationships</h4>
+        <p class="hint">A guardian can view your location and receive your safety alerts. Manage guardian links in <strong>Sharing → Contacts</strong>.</p>
         {#each $myGuardianData.asGuardian as g}
           <div class="guardian-item">
             <div>
@@ -257,6 +261,7 @@
     <div class="panel-body">
       <div class="section">
         <h4>Your Location</h4>
+        <p class="hint">Your live GPS coordinates, speed and accuracy while tracking is active. Use the <strong>Track / Stop</strong> button in the top bar to toggle sharing.</p>
         {#if $myLocation}
           <div class="metric-grid">
             <div class="metric-card"><span class="metric-label">Latitude</span><span class="metric-value">{formatCoordinate($myLocation.latitude)}</span></div>
@@ -300,6 +305,7 @@
       <hr class="divider" />
       <div class="section">
         <h4>Your Share Code</h4>
+        <p class="hint">Give this code to anyone you want to share your location with. They enter it in <strong>Sharing → Contacts</strong>.</p>
         <div class="code-row">
           <span class="code-value text-mono">{$myShareCode || '...'}</span>
           <button class="btn btn-sm btn-secondary" on:click={copyShareCode}>Copy</button>
@@ -308,6 +314,7 @@
       <hr class="divider" />
       <div class="section">
         <h4>Safety</h4>
+        <p class="hint"><strong>SOS</strong> — broadcasts an emergency alert with your live location to all contacts. <strong>I'm OK</strong> — sends a check-in so contacts know you're safe.</p>
         <div class="flex-row-wrap">
           <button class="btn" class:btn-danger={!$mySosActive} class:btn-secondary={$mySosActive} on:click={toggleSOS}>
             {$mySosActive ? 'Cancel SOS' : 'SOS'}
@@ -360,6 +367,7 @@
         <hr class="divider" />
         <div class="section">
           <h4>Guardian Relationships</h4>
+        <p class="hint">A guardian can view your location and receive your safety alerts. Manage guardian links in <strong>Sharing → Contacts</strong>.</p>
           {#each $myGuardianData.asGuardian as g}
             <div class="guardian-item">
               <div>
@@ -405,6 +413,14 @@
 {/if}
 
 <style>
+  .hint {
+    font-size: 12px;
+    color: var(--text-tertiary, #888);
+    line-height: 1.5;
+    margin: 0 0 8px;
+  }
+  .hint strong { color: var(--text-secondary, #aaa); font-weight: 600; }
+
   .gps-status-pill {
     display: inline-flex;
     align-items: center;

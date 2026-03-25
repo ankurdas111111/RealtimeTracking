@@ -195,12 +195,51 @@ func (h *Hub) handleSetRetention(c *Client, data json.RawMessage) {
 	if user.Retention == nil {
 		user.Retention = &cache.Retention{Mode: "default", ClientID: c.ID()}
 	}
-	if mode, ok := m["mode"].(string); ok && (mode == "48h" || mode == "default") {
+	validModes := map[string]bool{"default": true, "48h": true, "5d": true, "10d": true, "30d": true}
+	if mode, ok := m["mode"].(string); ok && validModes[mode] {
 		user.Retention.Mode = mode
 	}
 	sanitized := h.Cache.SanitizeUser(user)
 	sanitized["online"] = true
 	h.emitToVisibleAndSelf(user, "userUpdate", sanitized)
+}
+
+// handleSetPrivacyPause pauses or resumes the user's location sharing.
+// duration: "1h" | "4h" | "8h" → sets a pausedUntil timestamp.
+// duration: "resume" → clears the pause.
+func (h *Hub) handleSetPrivacyPause(c *Client, data json.RawMessage) {
+	if !c.CheckRateLimit("setPrivacyPause", 10) {
+		return
+	}
+	user := h.Cache.GetActiveUser(c.ID())
+	if user == nil {
+		return
+	}
+	m := toMap(data)
+	if m == nil {
+		return
+	}
+	duration, _ := m["duration"].(string)
+	now := time.Now()
+	var pausedUntil *int64
+	switch duration {
+	case "1h":
+		t := now.Add(1 * time.Hour).UnixMilli()
+		pausedUntil = &t
+	case "4h":
+		t := now.Add(4 * time.Hour).UnixMilli()
+		pausedUntil = &t
+	case "8h":
+		t := now.Add(8 * time.Hour).UnixMilli()
+		pausedUntil = &t
+	case "resume":
+		pausedUntil = nil
+	default:
+		return
+	}
+	user.PrivacyPausedUntil = pausedUntil
+	h.invalidateVisibility(user.UserID)
+	c.Send("privacyPauseAck", map[string]interface{}{"ok": true, "pausedUntil": pausedUntil})
 }
 
 // handleSetRetentionForever sets retention to forever (admin only).
